@@ -23,6 +23,7 @@ namespace Bullet.Wpf
         public MainWindow()
         {
             InitializeComponent();
+
         }
     }
 }
