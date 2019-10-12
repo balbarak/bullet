@@ -15,7 +15,7 @@ namespace Bullet.Test
         {
             var url = "http://localhost:5000/";
 
-            var manager = new BulletManager(url, 125,10);
+            var manager = new BulletManager(url, 125,3);
 
             await manager.StartGetRequests();
 

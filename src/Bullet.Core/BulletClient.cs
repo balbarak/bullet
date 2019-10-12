@@ -20,13 +20,13 @@ namespace Bullet.Core
         public event EventHandler OnRequestStarted;
         public event EventHandler OnRequestFinished;
 
+        public List<BulletRequest> Requests { get; private set; } = new List<BulletRequest>();
         public long ContentLength { get; private set; } = 0;
         public bool IsBusy { get; private set; }
-        public double TotalSeconds { get; private set; } = 0;
+        
         public int NumberOfRequests { get; private set; } = 0;
         public int SuccessCount { get; private set; }
         public int FailedCount { get; private set; }
-
         public int CancelledCount { get; private set; }
 
         public BulletClient()
@@ -51,6 +51,8 @@ namespace Bullet.Core
         public async Task GetAsync()
         {
             bool success = false;
+            double totalSeconds = 0;
+            var responseLength = 0;
 
             try
             {
@@ -61,12 +63,12 @@ namespace Bullet.Core
                 OnRequestStarted?.Invoke(this, EventArgs.Empty);
 
                 _watch.Start();
-                var response = await _client.GetAsync(_url,_ctk.Token);
+                var response = await _client.GetAsync(_url,_ctk.Token).ConfigureAwait(false);
                 _watch.Stop();
 
-                var resultBytes = await response.Content.ReadAsByteArrayAsync();
+                var resultBytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
 
-               ContentLength += resultBytes.Length;
+                responseLength = resultBytes.Length;
 
                 if (response.IsSuccessStatusCode)
                     success = true;
@@ -74,6 +76,8 @@ namespace Bullet.Core
             }
             catch (OperationCanceledException)
             {
+                success = true;
+
                 CancelledCount++;
             }
             catch (Exception)
@@ -84,6 +88,10 @@ namespace Bullet.Core
             {
                 _watch.Stop();
 
+                totalSeconds = TimeSpan.FromMilliseconds(_watch.ElapsedMilliseconds).TotalSeconds;
+
+                Requests.Add(new BulletRequest(totalSeconds, responseLength, success));
+
                 FinalizeRequest(success);
 
                 OnRequestFinished?.Invoke(this, EventArgs.Empty);
@@ -92,8 +100,6 @@ namespace Bullet.Core
 
         private void FinalizeRequest(bool success)
         {   
-            TotalSeconds += TimeSpan.FromMilliseconds(_watch.ElapsedMilliseconds).TotalSeconds;
-
             IsBusy = false;
 
             _watch.Reset();

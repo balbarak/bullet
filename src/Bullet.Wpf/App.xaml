@@ -4,5 +4,23 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:Bullet.Wpf"
     StartupUri="Views/MainWindow.xaml">
-    <Application.Resources />
+    <Application.Resources>
+
+        <Style
+            TargetType="TextBox"
+            x:Key="InputStyle">
+
+            <Setter Property="Height" Value="28" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+
+        </Style>
+
+        <Style
+            TargetType="StackPanel"
+            x:Key="FormGroup">
+
+            <Setter Property="Margin" Value="0,0,20,0" />
+        </Style>
+    </Application.Resources>
 </Application>
