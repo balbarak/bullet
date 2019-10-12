@@ -32,22 +32,22 @@ namespace Bullet.Core
 
         public double TotalSeconds { get; private set; }
 
-        public double MaxRequestPerSecond => _clients.SelectMany(a => a.Requests).Where(a => a.Success).Max(p => p.TotalSeconds);
+        public double MaxRequestPerSecond => _clients.SelectMany(a => a.Requests).Where(a => a.Success).Max(p => p.TotalMilliseconds);
 
-        public double LowsetRequestPerSecond => _clients.SelectMany(a => a.Requests).Where(a => a.Success).Min(p => p.TotalSeconds);
+        public double LowsetRequestPerSecond => _clients.SelectMany(a => a.Requests).Where(a => a.Success).Min(p => p.TotalMilliseconds);
 
-        public double AverageRequestPerSecond
+        public double TotalAverageRequestPerSecond
         {
             get
             {
-                var requests = _clients
-                    .SelectMany(a => a.Requests)
-                    .Where(p=> p.Success);
+                var successRequests = _clients.Where(a => a.Requests.Any(p => p.Success)).SelectMany(f => f.Requests);
+                var count = successRequests.Count();
 
-                var totalSeconds = requests.Sum(a => a.TotalSeconds);
+                var totalRequestMillSeconds = successRequests.Sum(a => a.TotalMilliseconds);
 
-                return requests.Count() / totalSeconds;
+                var totalSeconds = TimeSpan.FromMilliseconds(totalRequestMillSeconds).TotalSeconds;
 
+                return count / totalSeconds;
             }
         }
 
@@ -67,14 +67,19 @@ namespace Bullet.Core
 
         public async Task StartGetRequests()
         {
-            var tasks = _clients.Select(a => a.GetAsync());
+            var tasks = _clients.Select(a=> a.GetAsync());
 
             _startTime = DateTime.Now;
             _timer.Start();
             _watch.Start();
 
-            while (_watch.Elapsed.TotalSeconds < _durationInSeconds)
+            while (_watch.Elapsed.TotalMilliseconds < TimeSpan.FromSeconds(_durationInSeconds).TotalMilliseconds)
             {
+                //Parallel.ForEach(tasks, async (task) =>
+                //{
+                //    await task;
+                //});
+
                 await Task.WhenAll(tasks).ConfigureAwait(false);
             }
 
@@ -93,9 +98,11 @@ namespace Bullet.Core
 
         private void SetupClients()
         {
+            var httpClient = new HttpClient();
+
             for (int i = 0; i < _numberOfConnections; i++)
             {
-                var client = new BulletClient(_url, _ctk);
+                var client = new BulletClient(_url ,_ctk);
 
                 client.OnSuccess += OnClientSuccessInternal;
                 client.OnFailure += OnClientFailedInternal;
@@ -111,8 +118,8 @@ namespace Bullet.Core
 
             var seconds = (e.SignalTime - _startTime).TotalSeconds;
 
-            if (seconds > _durationInSeconds)
-                Cancell();
+            //if (seconds > _durationInSeconds)
+            //    Cancell();
         }
 
         private void OnClientFailedInternal(object sender, EventArgs e)

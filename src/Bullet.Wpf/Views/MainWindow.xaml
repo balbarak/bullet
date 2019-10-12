@@ -139,7 +139,7 @@
                         <TextBlock Text="Avg request per second" />
                         <TextBlock
                             FontSize="25"
-                            Text="{Binding LowsetRequestPerSecond}" />
+                            Text="{Binding AverageRequestPerSecond}" />
                     </StackPanel>
 
                 </StackPanel>

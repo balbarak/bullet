@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -23,7 +24,25 @@ namespace Bullet.Core
         public List<BulletRequest> Requests { get; private set; } = new List<BulletRequest>();
         public long ContentLength { get; private set; } = 0;
         public bool IsBusy { get; private set; }
-        
+
+        public double AverageRequestPerSecond
+        {
+            get
+            {
+                if (!Requests.Any())
+                    return 0;
+
+                var successRequests = Requests.Where(a => a.Success);
+
+                var totalMilliseconds = successRequests
+                    .Sum(a => a.TotalMilliseconds);
+
+                var totalSeconds = TimeSpan.FromMilliseconds(totalMilliseconds).TotalSeconds;
+
+                return successRequests.Count() / totalSeconds;
+            }
+        }
+
         public int NumberOfRequests { get; private set; } = 0;
         public int SuccessCount { get; private set; }
         public int FailedCount { get; private set; }
@@ -34,7 +53,7 @@ namespace Bullet.Core
             _client = new HttpClient();
         }
 
-        public BulletClient(string url,CancellationTokenSource ctk = default) : this()
+        public BulletClient(string url, CancellationTokenSource ctk = default) : this()
         {
             _url = url;
             _ctk = ctk;
@@ -48,10 +67,48 @@ namespace Bullet.Core
         }
 
 
+        public async Task GetAsyncFast()
+        {
+            
+            bool success = false;
+            double totalMilliseconds = 0;
+            var responseLength = 0;
+
+            try
+            {
+                _watch.Start();
+                var response = await _client.GetAsync(_url, _ctk.Token).ConfigureAwait(false);
+                _watch.Stop();
+
+                totalMilliseconds = _watch.Elapsed.TotalMilliseconds;
+
+            }
+            catch (OperationCanceledException)
+            {
+                success = true;
+
+                CancelledCount++;
+            }
+            catch (Exception)
+            {
+                success = false;
+            }
+            finally
+            {
+                _watch.Stop();
+
+                Requests.Add(new BulletRequest(totalMilliseconds, responseLength, success));
+
+                //FinalizeRequest(success);
+
+                //OnRequestFinished?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
         public async Task GetAsync()
         {
             bool success = false;
-            double totalSeconds = 0;
+            double totalMilliseconds = 0;
             var responseLength = 0;
 
             try
@@ -59,16 +116,18 @@ namespace Bullet.Core
                 IsBusy = true;
 
                 NumberOfRequests++;
-                
+
                 OnRequestStarted?.Invoke(this, EventArgs.Empty);
 
                 _watch.Start();
-                var response = await _client.GetAsync(_url,_ctk.Token).ConfigureAwait(false);
+                var response = await _client.GetAsync(_url, _ctk.Token).ConfigureAwait(false);
                 _watch.Stop();
 
-                var resultBytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                totalMilliseconds = _watch.Elapsed.TotalMilliseconds;
 
-                responseLength = resultBytes.Length;
+                //var resultBytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+
+                //responseLength = resultBytes.Length;
 
                 if (response.IsSuccessStatusCode)
                     success = true;
@@ -88,9 +147,8 @@ namespace Bullet.Core
             {
                 _watch.Stop();
 
-                totalSeconds = TimeSpan.FromMilliseconds(_watch.ElapsedMilliseconds).TotalSeconds;
 
-                Requests.Add(new BulletRequest(totalSeconds, responseLength, success));
+                Requests.Add(new BulletRequest(totalMilliseconds, responseLength, success));
 
                 FinalizeRequest(success);
 
@@ -99,7 +157,7 @@ namespace Bullet.Core
         }
 
         private void FinalizeRequest(bool success)
-        {   
+        {
             IsBusy = false;
 
             _watch.Reset();

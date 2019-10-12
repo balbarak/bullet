@@ -109,6 +109,9 @@ namespace Bullet.Wpf
             TotalRequest = 0;
             TotalSuccessRequest = 0;
             TotalFailedRequest = 0;
+            AverageRequestPerSecond = 0;
+            MaxRequestPerSecond = 0;
+            LowsetRequestPerSecond = 0;
             _secondElapsed = 1;
             _manager = new BulletManager(Url, NumberOfConnections, Duration);
         }
@@ -166,6 +169,9 @@ namespace Bullet.Wpf
 
             MaxRequestPerSecond = manager.MaxRequestPerSecond;
             LowsetRequestPerSecond = manager.LowsetRequestPerSecond;
+            AverageRequestPerSecond = manager.TotalAverageRequestPerSecond;
+
+            IsBusy = false;
         }
 
         private void OnClientBeginRequest(object sender, EventArgs e)
