@@ -67,20 +67,21 @@ namespace Bullet.Core
 
         public async Task StartGetRequests()
         {
-            var tasks = _clients.Select(a=> a.GetAsync());
+            var tasks = _clients.Select(a => a.GetAsync());
+            var duration = TimeSpan.FromSeconds(_durationInSeconds).TotalSeconds;
 
             _startTime = DateTime.Now;
             _timer.Start();
             _watch.Start();
 
-            while (_watch.Elapsed.TotalMilliseconds < TimeSpan.FromSeconds(_durationInSeconds).TotalMilliseconds)
+            while (true)
             {
-                //Parallel.ForEach(tasks, async (task) =>
-                //{
-                //    await task;
-                //});
+                var tick = _watch.Elapsed.TotalSeconds;
 
                 await Task.WhenAll(tasks).ConfigureAwait(false);
+
+                if (tick < duration)
+                    break;
             }
 
             _watch.Stop();
@@ -102,7 +103,7 @@ namespace Bullet.Core
 
             for (int i = 0; i < _numberOfConnections; i++)
             {
-                var client = new BulletClient(_url ,_ctk);
+                var client = new BulletClient(_url, _ctk);
 
                 client.OnSuccess += OnClientSuccessInternal;
                 client.OnFailure += OnClientFailedInternal;
