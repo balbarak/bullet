@@ -10,9 +10,9 @@ namespace Bullet.Wpf
 {
     public class MainViewModel : BaseViewModel
     {
-        private int _numberOfConnections = 125;
+        private int _numberOfConnections = 1;
         private string _url = "http://localhost:5000/";
-        private int _duration = 10;
+        private int _duration = 1;
         private BulletManager _manager;
         private double _progress;
         private int _secondElapsed = 1;
@@ -22,7 +22,7 @@ namespace Bullet.Wpf
         private double _maxRequestPerSecond;
         private double _lowestRequestPerSecond;
         private double _averageRequestPerSecond;
-
+        private CancellationTokenSource _ctk;
         public double LowsetRequestPerSecond
         {
             get { return _lowestRequestPerSecond; }
@@ -84,7 +84,8 @@ namespace Bullet.Wpf
 
         private async Task Start()
         {
-
+            _ctk = new CancellationTokenSource();
+            
             IsBusy = true;
 
             if (_manager != null)
@@ -94,9 +95,11 @@ namespace Bullet.Wpf
 
             AddManagerEvents();
 
+            var duration = TimeSpan.FromSeconds(_duration);
+
             await Task.Run(() =>
             {
-                return _manager.StartGetRequests();
+                return _manager.StartDuration(duration,_numberOfConnections,_ctk.Token);
             });
 
 

@@ -5,11 +5,13 @@ VisualStudioVersion = 16.0.29403.142
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bullet.Wpf", "Bullet.Wpf\Bullet.Wpf.csproj", "{16C4F18C-240C-4B23-9670-0D3C8A89CC82}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bullet.Core", "Bullet.Core\Bullet.Core.csproj", "{4C6D5E76-A7FA-49DB-A8AF-7639A78245E5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bullet.Core", "Bullet.Core\Bullet.Core.csproj", "{4C6D5E76-A7FA-49DB-A8AF-7639A78245E5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{3D1599C0-CD2C-4627-AF19-24EDFB57FCE5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bullet.Test", "Bullet.Test\Bullet.Test.csproj", "{D8DE9A63-A624-4053-BF13-8C601F33F056}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bullet.Test", "Bullet.Test\Bullet.Test.csproj", "{D8DE9A63-A624-4053-BF13-8C601F33F056}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bullet.Client", "Bullet.HttpClient\Bullet.Client.csproj", "{C0A1A11A-A40E-4031-92BC-E178B1091ED2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,6 +31,10 @@ Global
 		{D8DE9A63-A624-4053-BF13-8C601F33F056}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8DE9A63-A624-4053-BF13-8C601F33F056}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D8DE9A63-A624-4053-BF13-8C601F33F056}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C0A1A11A-A40E-4031-92BC-E178B1091ED2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C0A1A11A-A40E-4031-92BC-E178B1091ED2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C0A1A11A-A40E-4031-92BC-E178B1091ED2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C0A1A11A-A40E-4031-92BC-E178B1091ED2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

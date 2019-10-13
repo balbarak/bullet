@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bullet.Core\Bullet.Core.csproj" />
+    <ProjectReference Include="..\Bullet.HttpClient\Bullet.Client.csproj" />
   </ItemGroup>
 
 </Project>

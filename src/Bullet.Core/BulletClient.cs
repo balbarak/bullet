@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -11,167 +12,101 @@ namespace Bullet.Core
 {
     public class BulletClient : IAsyncDisposable
     {
-        private readonly HttpClient _client;
+        private readonly HttpClient _httpClient;
         private readonly string _url;
-        private readonly Stopwatch _watch = new Stopwatch();
-        private CancellationTokenSource _ctk;
+        private readonly int _index;
+        private readonly Stopwatch _localStopWatch;
+        //private readonly ConcurrentQueue<BulletRequest> _requests;
+        //private CancellationTokenSource _ctk;
+        private int _numberOfRequests;
 
-        public event EventHandler OnSuccess;
-        public event EventHandler OnFailure;
-        public event EventHandler OnRequestStarted;
-        public event EventHandler OnRequestFinished;
+        //public BulletRequest[] Requests => _requests.ToArray();
 
-        public List<BulletRequest> Requests { get; private set; } = new List<BulletRequest>();
-        public long ContentLength { get; private set; } = 0;
-        public bool IsBusy { get; private set; }
+        //public event EventHandler OnSuccess;
+        //public event EventHandler OnFailure;
+        //public event EventHandler OnRequestStarted;
+        //public event EventHandler OnRequestFinished;
 
-        public double AverageRequestPerSecond
+        //public bool IsBusy { get; private set; }
+
+        //public double AverageRequestPerSecond
+        //{
+        //    get
+        //    {
+        //        if (!_requests.Any())
+        //            return 0;
+
+        //        var successRequests = _requests.Where(a => a.Success);
+
+        //        var totalMilliseconds = successRequests
+        //            .Sum(a => a.ResponseTime);
+
+        //        var totalSeconds = TimeSpan.FromMilliseconds(totalMilliseconds).TotalSeconds;
+
+        //        return successRequests.Count() / totalSeconds;
+        //    }
+        //}
+
+        //public int SuccessCount { get; private set; }
+        //public int FailedCount { get; private set; }
+        //public int CancelledCount { get; private set; }
+
+
+        public BulletClient(int index,string url) 
         {
-            get
-            {
-                if (!Requests.Any())
-                    return 0;
+            _numberOfRequests = 0;
+            _httpClient = new HttpClient();
+            _localStopWatch = new Stopwatch();
+            //_requests = new ConcurrentQueue<BulletRequest>();
 
-                var successRequests = Requests.Where(a => a.Success);
-
-                var totalMilliseconds = successRequests
-                    .Sum(a => a.TotalMilliseconds);
-
-                var totalSeconds = TimeSpan.FromMilliseconds(totalMilliseconds).TotalSeconds;
-
-                return successRequests.Count() / totalSeconds;
-            }
-        }
-
-        public int NumberOfRequests { get; private set; } = 0;
-        public int SuccessCount { get; private set; }
-        public int FailedCount { get; private set; }
-        public int CancelledCount { get; private set; }
-
-        public BulletClient()
-        {
-            _client = new HttpClient();
-        }
-
-        public BulletClient(string url, CancellationTokenSource ctk = default) : this()
-        {
             _url = url;
-            _ctk = ctk;
+            _index = index;
         }
 
-        public BulletClient(string url, HttpClient client, CancellationTokenSource ctk = default)
+        public async ValueTask GetAsyncFast(CancellationToken ctk = default)
         {
-            _url = url;
-            _ctk = ctk;
-            _client = client;
-        }
+            //bool success = false;
 
+            //NumberOfRequests++;
 
-        public async Task GetAsyncFast()
-        {
+            //OnRequestStarted?.Invoke(this, EventArgs.Empty);
+            Interlocked.Increment(ref _numberOfRequests);
+
+            _localStopWatch.Restart();
             
-            bool success = false;
-            double totalMilliseconds = 0;
-            var responseLength = 0;
-
-            try
+            using (var response = await _httpClient.GetAsync(_url, ctk))
             {
-                _watch.Start();
-                var response = await _client.GetAsync(_url, _ctk.Token).ConfigureAwait(false);
-                _watch.Stop();
+                var contentStream = await response.Content.ReadAsStreamAsync();
+                var length = contentStream.Length + response.Headers.ToString().Length;
+                var responseTime = (float) _localStopWatch.ElapsedTicks / Stopwatch.Frequency * 1000;
 
-                totalMilliseconds = _watch.Elapsed.TotalMilliseconds;
+                //if (response.IsSuccessStatusCode)
+                //    success = true;
 
+                //_requests.Enqueue(new BulletRequest(responseTime, length, true));
             }
-            catch (OperationCanceledException)
-            {
-                success = true;
 
-                CancelledCount++;
-            }
-            catch (Exception)
-            {
-                success = false;
-            }
-            finally
-            {
-                _watch.Stop();
-
-                Requests.Add(new BulletRequest(totalMilliseconds, responseLength, success));
-
-                //FinalizeRequest(success);
-
-                //OnRequestFinished?.Invoke(this, EventArgs.Empty);
-            }
-        }
-
-        public async Task GetAsync()
-        {
-            bool success = false;
-            double totalMilliseconds = 0;
-            var responseLength = 0;
-
-            try
-            {
-                IsBusy = true;
-
-                NumberOfRequests++;
-
-                OnRequestStarted?.Invoke(this, EventArgs.Empty);
-
-                _watch.Start();
-                var response = await _client.GetAsync(_url, _ctk.Token).ConfigureAwait(false);
-                _watch.Stop();
-
-                totalMilliseconds = _watch.Elapsed.TotalMilliseconds;
-
-                //var resultBytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
-
-                //responseLength = resultBytes.Length;
-
-                if (response.IsSuccessStatusCode)
-                    success = true;
-
-            }
-            catch (OperationCanceledException)
-            {
-                success = true;
-
-                CancelledCount++;
-            }
-            catch (Exception)
-            {
-                success = false;
-            }
-            finally
-            {
-                _watch.Stop();
-
-
-                Requests.Add(new BulletRequest(totalMilliseconds, responseLength, success));
-
-                FinalizeRequest(success);
-
-                OnRequestFinished?.Invoke(this, EventArgs.Empty);
-            }
+            //FinalizeRequest(success);
         }
 
         private void FinalizeRequest(bool success)
         {
-            IsBusy = false;
+           
 
-            _watch.Reset();
+            _localStopWatch.Reset();
 
             if (success)
             {
-                SuccessCount++;
-                OnSuccess?.Invoke(this, EventArgs.Empty);
+                //SuccessCount++;
+                //OnSuccess?.Invoke(this, EventArgs.Empty);
             }
             else
             {
-                FailedCount++;
-                OnFailure?.Invoke(this, EventArgs.Empty);
+                //FailedCount++;
+                //OnFailure?.Invoke(this, EventArgs.Empty);
             }
+
+            //OnRequestFinished?.Invoke(this, EventArgs.Empty);
         }
 
         public ValueTask DisposeAsync()

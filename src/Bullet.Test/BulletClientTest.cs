@@ -11,13 +11,9 @@ namespace Bullet.Test
         {
             var url = "http://localhost:5000/";
 
-            BulletClient client = new BulletClient(url);
+            BulletClient client = new BulletClient(1,url);
 
-            await client.GetAsync();
-            await client.GetAsync();
-            await client.GetAsync();
-            await client.GetAsync();
-            await client.GetAsync();
+            
 
         }
     }
