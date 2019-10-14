@@ -14,7 +14,7 @@ namespace Bullet.Client
         private TcpClient _tcpClient;
         private Uri _uri;
         private const int IO_CONTROL_CODE = -1744830448;
-        private const int BUFFER_SIZE = 8192;
+        private const int BUFFER_SIZE = 512;
         private Stream _stream;
         private byte[] _requestHeader;
         private Pipe _pipe;
@@ -42,13 +42,11 @@ namespace Bullet.Client
 
             var pipe = new Pipe();
             
-            var writeTask = WriteToPipe(pipe.Writer);
-            var readTask = ReadPipe(pipe.Reader);
+            var writeTask = FillPipeAsync(_tcpClient.Client,pipe.Writer);
+            var readTask = ReadPipeAsync(pipe.Reader);
 
-            //var writeTask =  WriteToPipe();
-            //var readTask = ReadPipe();
 
-            //await Task.WhenAll(writeTask, readTask);
+            await Task.WhenAll(writeTask, readTask);
 
             //var readBytes = await ReadAsync(_buffer);
 
@@ -136,15 +134,89 @@ namespace Bullet.Client
         private async Task ReadPipe(PipeReader reader)
         {
             var readerResult = await reader.ReadAsync();
+            
+            var buffer = readerResult.Buffer;
 
-            var ee = readerResult.Buffer;
+            var ee = readerResult.Buffer.ToArray();
+
+            reader.AdvanceTo(buffer.Start, buffer.End);
+
+            await reader.CompleteAsync();
         }
 
-        private async ValueTask ReadAsync()
+        async Task FillPipeAsync(Socket socket, PipeWriter writer)
         {
             
-        }
+            while (true)
+            {
+                // Allocate at least 512 bytes from the PipeWriter
+                Memory<byte> memory = writer.GetMemory(BUFFER_SIZE);
+                try
+                {
+                    int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None);
 
+                    if (bytesRead == 0)
+                    {
+                        break;
+                    }
+                    // Tell the PipeWriter how much was read from the Socket
+                    writer.Advance(bytesRead);
+                }
+                catch (Exception ex)
+                {
+                    break;
+                }
+
+                // Make the data available to the PipeReader
+                FlushResult result = await writer.FlushAsync();
+
+                if (result.IsCompleted)
+                {
+                    break;
+                }
+            }
+
+            // Tell the PipeReader that there's no more data coming
+            writer.Complete();
+        }
+        async Task ReadPipeAsync(PipeReader reader)
+        {
+            while (true)
+            {
+                ReadResult result = await reader.ReadAsync();
+
+                ReadOnlySequence<byte> buffer = result.Buffer;
+                SequencePosition? position = null;
+
+                do
+                {
+                    // Look for a EOL in the buffer
+                    position = buffer.PositionOf((byte)'\n');
+
+                    if (position != null)
+                    {
+                        // Process the line
+                        //ProcessLine(buffer.Slice(0, position.Value));
+
+                        // Skip the line + the \n character (basically position)
+                        buffer = buffer.Slice(buffer.GetPosition(1, position.Value));
+                    }
+                }
+                while (position != null);
+
+                // Tell the PipeReader how much of the buffer we have consumed
+                reader.AdvanceTo(buffer.Start, buffer.End);
+
+                // Stop reading if there's no more data coming
+                if (result.IsCompleted)
+                {
+                    break;
+                }
+            }
+
+            // Mark the PipeReader as complete
+            reader.Complete();
+        }
         private void Reset()
         {
             _tcpClient?.Close();
