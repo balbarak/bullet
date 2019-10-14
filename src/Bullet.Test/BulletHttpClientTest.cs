@@ -37,7 +37,6 @@ namespace Bullet.Test
                 index++;
             }
 
-            await client.GetData();
         }
     }
 }
