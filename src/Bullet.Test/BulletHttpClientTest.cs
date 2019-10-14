@@ -22,7 +22,6 @@ namespace Bullet.Test
         [Fact]
         public async void GetAsyncForOneSecondTest()
         {
-
             var url = "http://localhost:5000/";
 
             BulletHttpClient client = new BulletHttpClient(url);
@@ -38,6 +37,7 @@ namespace Bullet.Test
                 index++;
             }
 
+            await client.GetData();
         }
     }
 }
