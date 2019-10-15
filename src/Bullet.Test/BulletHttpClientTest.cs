@@ -19,13 +19,14 @@ namespace Bullet.Test
 
             await client.GetAsync(url);
 
-            await client.ParseRequest();
+            //await client.ParseRequest();
         }
 
         [Fact]
         public async void GetAsyncForOneSecondTest()
         {
             var url = "http://localhost:5000/";
+            //var url = "http://btx-web/";
 
             BulletHttpClient client = new BulletHttpClient(url);
 
@@ -40,7 +41,9 @@ namespace Bullet.Test
                 index++;
             }
 
-            await client.ParseRequest();
+            var ee = "";
+
+            await client.WaitRequestsRespons();
         }
     }
 }

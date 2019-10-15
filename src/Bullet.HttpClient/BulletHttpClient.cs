@@ -25,10 +25,9 @@ namespace Bullet.Client
         private int _totalBytesRead = 0;
         private int _totalRequests = 0;
         private int _totalReads = 0;
-        private List<Task> _readTasks;
-
+        private Memory<byte> _buffer = new Memory<byte>(new byte[BUFFER_SIZE]);
         private SemaphoreSlim _lock;
-
+        //private List<Task> _readTasks = new List<Task>();
         public List<BulletHttpHeader> RequestHeaders { get; private set; } = new List<BulletHttpHeader>();
 
         public BulletHttpClient(string url)
@@ -37,8 +36,6 @@ namespace Bullet.Client
             _requestHeader = Encoding.UTF8.GetBytes($"GET {_uri.PathAndQuery} HTTP/1.1\r\nAccept-Encoding: gzip, deflate, sdch\r\nHost: {_uri.Host}\r\nContent-Length: 0\r\n\r\n");
             _pipe = new Pipe();
             _lock = new SemaphoreSlim(1,1);
-            _readTasks = new List<Task>();
-
             SetupTcpClient();
         }
 
@@ -49,13 +46,15 @@ namespace Bullet.Client
             var socket = _tcpClient.Client;
 
             var header = _requestHeader.AsMemory();
-            
+
             await SendAsnc(socket, header)
-                .AsTask();
-            
+                .ConfigureAwait(false);
+
+            await ReadAsyncTwo(socket)
+                .ConfigureAwait(false);
+
             _totalRequests++;
 
-            var readTask = ReadAsyncTwo(socket);
         }
 
         private void SetupTcpClient()
@@ -82,7 +81,7 @@ namespace Bullet.Client
             return socket.SendAsync(buffer, SocketFlags.None);
         }
 
-        private async ValueTask<int> ReadAsync(Socket socket)
+        private async Task<int> ReadAsync(Socket socket)
         {
             var writer = _pipe.Writer;
             int totalBytesRead = 0;
@@ -122,64 +121,43 @@ namespace Bullet.Client
             return totalBytesRead;
         }
 
-        private async Task ReadAsyncTwo(Socket socket)
+        private async ValueTask ReadAsyncTwo(Socket socket)
         {
             _totalReads++;
+            await _lock.WaitAsync();
 
             try
             {
-                var writer = _pipe.Writer;
-
-                int totalBytesRead = 0;
-
-                var buffer = writer.GetMemory(BUFFER_SIZE);
-
-                int readBytes = await socket.ReceiveAsync(buffer, SocketFlags.None);
+                int readBytes = await socket.ReceiveAsync(_buffer, SocketFlags.None);
 
                 if (readBytes == 0)
-                {
-                    _lock.Release();
-                    throw new SocketException();
-                }
+                    return;
 
-                writer.Advance(readBytes);
-
-                totalBytesRead += readBytes;
-
-                var responseType = BulletHttpHeader.GetResponseType(buffer.Span);
-                var statusCode = BulletHttpHeader.GetStatusCode(buffer.Span);
+                var responseSpan = _buffer.Slice(0, readBytes);
+                var statusCode = BulletHttpHeader.GetStatusCode(responseSpan.Span);
+                var responseType = BulletHttpHeader.GetResponseType(responseSpan.Span);
 
                 if (responseType == ResponseType.Chunked)
                 {
-                    while (!HttpStreamHelper.IsEndOfChunkedStream(buffer.Span.Slice(0, readBytes)))
+                    while (!HttpStreamHelper.IsEndOfChunkedStream(_buffer.Span.Slice(0, readBytes)))
                     {
-                        buffer = writer.GetMemory(BUFFER_SIZE);
-
-                        readBytes = await socket.ReceiveAsync(buffer, SocketFlags.None);
-
-                        totalBytesRead += readBytes;
-
-                        writer.Advance(readBytes);
+                        readBytes = await socket.ReceiveAsync(_buffer, SocketFlags.None);
                     }
                 }
-
-                FlushResult result = await writer.FlushAsync();
             }
-            finally
+            catch
             {
 
             }
+            finally
+            {
+                _lock.Release();
+            }
         }
 
-        public async Task ParseRequest()
+        public async Task WaitRequestsRespons()
         {
-            var reader = _pipe.Reader;
-
-            var readResult = await reader.ReadAsync();
-
-            reader.AdvanceTo(readResult.Buffer.Start, readResult.Buffer.End);
-
-
+            //await Task.WhenAll(_readTasks);
         }
         private void Connect()
         {
