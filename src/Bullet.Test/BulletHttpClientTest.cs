@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Bullet.Test
@@ -17,6 +18,8 @@ namespace Bullet.Test
             BulletHttpClient client = new BulletHttpClient(url);
 
             await client.GetAsync(url);
+
+            await client.ParseRequest();
         }
 
         [Fact]
@@ -37,6 +40,7 @@ namespace Bullet.Test
                 index++;
             }
 
+            await client.ParseRequest();
         }
     }
 }

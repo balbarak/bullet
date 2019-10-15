@@ -1,10 +1,13 @@
-﻿using System;
+﻿using Bullet.Client.Helpers;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Bullet.Client
@@ -14,44 +17,45 @@ namespace Bullet.Client
         private TcpClient _tcpClient;
         private Uri _uri;
         private const int IO_CONTROL_CODE = -1744830448;
-        private const int BUFFER_SIZE = 512;
+        private const int BUFFER_SIZE = 8192;
         private Stream _stream;
         private byte[] _requestHeader;
         private Pipe _pipe;
         private bool _isReadingFromStream = false;
         private int _totalBytesRead = 0;
+        private int _totalRequests = 0;
+        private int _totalReads = 0;
+        private List<Task> _readTasks;
+
+        private SemaphoreSlim _lock;
+
+        public List<BulletHttpHeader> RequestHeaders { get; private set; } = new List<BulletHttpHeader>();
 
         public BulletHttpClient(string url)
         {
             _uri = new Uri(url);
             _requestHeader = Encoding.UTF8.GetBytes($"GET {_uri.PathAndQuery} HTTP/1.1\r\nAccept-Encoding: gzip, deflate, sdch\r\nHost: {_uri.Host}\r\nContent-Length: 0\r\n\r\n");
             _pipe = new Pipe();
+            _lock = new SemaphoreSlim(1,1);
+            _readTasks = new List<Task>();
 
             SetupTcpClient();
         }
 
-        public async Task GetAsync(string url)
+        public async ValueTask GetAsync(string url)
         {
             Connect();
 
+            var socket = _tcpClient.Client;
+
             var header = _requestHeader.AsMemory();
-
-            Write(header.Span);
-
-            //FillPipeAsync(_tcpClient.Client, _pipe.Writer);
-
-            var pipe = new Pipe();
             
-            var writeTask = FillPipeAsync(_tcpClient.Client,pipe.Writer);
-            var readTask = ReadPipeAsync(pipe.Reader);
+            await SendAsnc(socket, header)
+                .AsTask();
+            
+            _totalRequests++;
 
-
-            await Task.WhenAll(writeTask, readTask);
-
-            //var readBytes = await ReadAsync(_buffer);
-
-            //return Task.CompletedTask;
-
+            var readTask = ReadAsyncTwo(socket);
         }
 
         private void SetupTcpClient()
@@ -73,6 +77,110 @@ namespace Bullet.Client
             _stream.Write(buffer);
         }
 
+        private ValueTask<int> SendAsnc(Socket socket, ReadOnlyMemory<byte> buffer)
+        {
+            return socket.SendAsync(buffer, SocketFlags.None);
+        }
+
+        private async ValueTask<int> ReadAsync(Socket socket)
+        {
+            var writer = _pipe.Writer;
+            int totalBytesRead = 0;
+
+            while (socket.Available > 0)
+            {
+                Memory<byte> memory = writer.GetMemory(BUFFER_SIZE);
+
+                try
+                {
+                    int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None);
+
+                    if (bytesRead == 0)
+                    {
+                        break;
+                    }
+                    
+                    totalBytesRead += bytesRead;
+
+                    writer.Advance(bytesRead);
+                }
+                catch (Exception ex)
+                {
+                    break;
+                }
+
+                FlushResult result = await writer.FlushAsync();
+
+                if (result.IsCompleted)
+                {
+                    break;
+                }
+            }
+            
+            //writer.Complete();
+
+            return totalBytesRead;
+        }
+
+        private async Task ReadAsyncTwo(Socket socket)
+        {
+            _totalReads++;
+
+            try
+            {
+                var writer = _pipe.Writer;
+
+                int totalBytesRead = 0;
+
+                var buffer = writer.GetMemory(BUFFER_SIZE);
+
+                int readBytes = await socket.ReceiveAsync(buffer, SocketFlags.None);
+
+                if (readBytes == 0)
+                {
+                    _lock.Release();
+                    throw new SocketException();
+                }
+
+                writer.Advance(readBytes);
+
+                totalBytesRead += readBytes;
+
+                var responseType = BulletHttpHeader.GetResponseType(buffer.Span);
+                var statusCode = BulletHttpHeader.GetStatusCode(buffer.Span);
+
+                if (responseType == ResponseType.Chunked)
+                {
+                    while (!HttpStreamHelper.IsEndOfChunkedStream(buffer.Span.Slice(0, readBytes)))
+                    {
+                        buffer = writer.GetMemory(BUFFER_SIZE);
+
+                        readBytes = await socket.ReceiveAsync(buffer, SocketFlags.None);
+
+                        totalBytesRead += readBytes;
+
+                        writer.Advance(readBytes);
+                    }
+                }
+
+                FlushResult result = await writer.FlushAsync();
+            }
+            finally
+            {
+
+            }
+        }
+
+        public async Task ParseRequest()
+        {
+            var reader = _pipe.Reader;
+
+            var readResult = await reader.ReadAsync();
+
+            reader.AdvanceTo(readResult.Buffer.Start, readResult.Buffer.End);
+
+
+        }
         private void Connect()
         {
             if (_tcpClient.Connected)
@@ -134,7 +242,7 @@ namespace Bullet.Client
         private async Task ReadPipe(PipeReader reader)
         {
             var readerResult = await reader.ReadAsync();
-            
+
             var buffer = readerResult.Buffer;
 
             var ee = readerResult.Buffer.ToArray();
@@ -146,7 +254,7 @@ namespace Bullet.Client
 
         async Task FillPipeAsync(Socket socket, PipeWriter writer)
         {
-            
+
             while (true)
             {
                 // Allocate at least 512 bytes from the PipeWriter
