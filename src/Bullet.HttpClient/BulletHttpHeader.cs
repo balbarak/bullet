@@ -21,15 +21,20 @@ namespace Bullet.Client
         public static readonly ReadOnlyMemory<byte> EndOfChunkedResponse = Encoding.ASCII.GetBytes("0\r\n\r\n");
 
         public int StatusCode { get; private set; }
+        public int Length { get; private set; }
+
+        public double Latency { get; private set; }
 
         public BulletHttpHeader()
         {
 
         }
 
-        public BulletHttpHeader(int statusCode) 
+        public BulletHttpHeader(int statusCode,int length, double latency) 
         {
             StatusCode = statusCode;
+            Length = length;
+            Latency = latency;
         }
 
         public static int GetStatusCode(ReadOnlySpan<byte> buffer)

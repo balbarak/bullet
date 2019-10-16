@@ -9,23 +9,19 @@ namespace Bullet.Client
 {
     public class FastBulletClient
     {
-        private readonly int _index;
-        private readonly string _url;
-        private readonly Stopwatch _stopwatch;
-        private readonly Stopwatch _localStopwatch;
         private readonly HttpClient _httpClient;
 
-        public FastBulletClient(string url)
+        public FastBulletClient()
         {
             _httpClient = new HttpClient();
-            _url = url;
+            
         }
 
-        public async ValueTask GetAsync()
+        public async ValueTask GetAsync(string url)
         {
-            using (var response = await _httpClient.GetAsync(_url).ConfigureAwait(false))
+            using (var response = await _httpClient.GetAsync(url,HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
             {
-                var contentStream = await response.Content.ReadAsStreamAsync();
+                //var contentStream = await response.Content.ReadAsStreamAsync();
             }
         }
     }

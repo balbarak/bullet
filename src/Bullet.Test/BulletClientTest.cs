@@ -1,5 +1,7 @@
+using Bullet.Client;
 using Bullet.Core;
 using System;
+using System.Diagnostics;
 using Xunit;
 
 namespace Bullet.Test
@@ -11,9 +13,18 @@ namespace Bullet.Test
         {
             var url = "http://localhost:5000/";
 
-            BulletClient client = new BulletClient(1,url);
+            FastBulletClient client = new FastBulletClient();
 
-            
+            var duration = TimeSpan.FromSeconds(1);
+            var sw = Stopwatch.StartNew();
+
+            int index = 1;
+
+            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+            {
+                await client.GetAsync(url);
+                index++;
+            }
 
         }
     }

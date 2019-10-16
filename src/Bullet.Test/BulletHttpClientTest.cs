@@ -17,7 +17,7 @@ namespace Bullet.Test
 
             BulletHttpClient client = new BulletHttpClient(url);
 
-            await client.GetAsync(url);
+            await client.GetAsync();
 
             //await client.ParseRequest();
         }
@@ -26,8 +26,7 @@ namespace Bullet.Test
         public async void GetAsyncForOneSecondTest()
         {
             var url = "http://localhost:5000/";
-            //var url = "http://btx-web/";
-
+            
             BulletHttpClient client = new BulletHttpClient(url);
 
             var duration = TimeSpan.FromSeconds(1);
@@ -37,13 +36,11 @@ namespace Bullet.Test
 
             while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
             {
-                await client.GetAsync(url);
+                await client.GetAsync();
                 index++;
             }
 
             var ee = "";
-
-            await client.WaitRequestsRespons();
         }
     }
 }

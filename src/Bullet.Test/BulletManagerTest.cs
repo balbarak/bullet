@@ -32,13 +32,13 @@ namespace Bullet.Test
 
             var duration = TimeSpan.FromSeconds(1);
             var sw = Stopwatch.StartNew();
-            var client = new FastBulletClient("http://localhost:5000/");
+            //var client = new FastBulletClient("http://localhost:5000/");
 
-            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
-            {
-                await client.GetAsync();
-                index++;
-            }
+            //while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+            //{
+            //    await client.GetAsync();
+            //    index++;
+            //}
 
         }
     }
