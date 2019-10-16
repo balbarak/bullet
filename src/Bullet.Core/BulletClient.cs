@@ -74,11 +74,11 @@ namespace Bullet.Core
 
             _localStopWatch.Restart();
             
-            using (var response = await _httpClient.GetAsync(_url, ctk))
+            using (var response = await _httpClient.GetAsync(_url,HttpCompletionOption.ResponseHeadersRead, ctk))
             {
-                var contentStream = await response.Content.ReadAsStreamAsync();
-                var length = contentStream.Length + response.Headers.ToString().Length;
-                var responseTime = (float) _localStopWatch.ElapsedTicks / Stopwatch.Frequency * 1000;
+                //var contentStream = await response.Content.ReadAsStreamAsync();
+                //var length = contentStream.Length + response.Headers.ToString().Length;
+                //var responseTime = (float) _localStopWatch.ElapsedTicks / Stopwatch.Frequency * 1000;
 
                 //if (response.IsSuccessStatusCode)
                 //    success = true;

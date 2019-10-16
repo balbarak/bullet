@@ -13,7 +13,8 @@ namespace Bullet.Client.Helpers
 
         public static bool IsEndOfHeader(ReadOnlySpan<byte> buffer)
         {
-            return buffer.Length >= 5 && buffer.Slice(buffer.Length - 5, 5).SequenceEqual(BulletHttpHeader.HeaderEnd.Span);
+            
+            return buffer.SequenceEqual(BulletHttpHeader.HeaderEnd.Span);
         }
     }
 }

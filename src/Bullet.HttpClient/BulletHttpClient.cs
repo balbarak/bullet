@@ -20,6 +20,7 @@ namespace Bullet.Client
         private const int BUFFER_SIZE = 8192;
         private Stream _stream;
         private byte[] _requestHeader;
+        private Memory<byte> _requestMemory;
         private Pipe _pipe;
         private bool _isReadingFromStream = false;
         private int _totalBytesRead = 0;
@@ -27,7 +28,7 @@ namespace Bullet.Client
         private int _totalReads = 0;
         private Memory<byte> _buffer = new Memory<byte>(new byte[BUFFER_SIZE]);
         private SemaphoreSlim _lock;
-        //private List<Task> _readTasks = new List<Task>();
+        private List<Task> _readTasks = new List<Task>();
         public List<BulletHttpHeader> RequestHeaders { get; private set; } = new List<BulletHttpHeader>();
 
         public BulletHttpClient(string url)
@@ -35,7 +36,11 @@ namespace Bullet.Client
             _uri = new Uri(url);
             _requestHeader = Encoding.UTF8.GetBytes($"GET {_uri.PathAndQuery} HTTP/1.1\r\nAccept-Encoding: gzip, deflate, sdch\r\nHost: {_uri.Host}\r\nContent-Length: 0\r\n\r\n");
             _pipe = new Pipe();
-            _lock = new SemaphoreSlim(1,1);
+            _lock = new SemaphoreSlim(1, 1);
+
+            _requestMemory = new Memory<byte>(_requestHeader);
+
+
             SetupTcpClient();
         }
 
@@ -45,13 +50,35 @@ namespace Bullet.Client
 
             var socket = _tcpClient.Client;
 
-            var header = _requestHeader.AsMemory();
+            var header = _requestMemory;
 
             await SendAsnc(socket, header)
                 .ConfigureAwait(false);
 
-            await ReadAsyncTwo(socket)
-                .ConfigureAwait(false);
+            ReadSmallAsync(socket);
+
+            //ReadAsyncFastest(socket);
+
+            ////_readTasks.Add(readTask);
+            ///
+
+
+            _totalRequests++;
+
+        }
+
+        public void Get(string url)
+        {
+            Connect();
+
+            var socket = _tcpClient.Client;
+
+            var header = _requestHeader.AsMemory();
+
+            Send(socket, header);
+
+            Read(socket);
+
 
             _totalRequests++;
 
@@ -63,7 +90,8 @@ namespace Bullet.Client
             {
                 NoDelay = true,
                 SendTimeout = 10000,
-                ReceiveTimeout = 1000
+                ReceiveTimeout = 1000,
+                ReceiveBufferSize = Int32.MaxValue,
             };
 
             //var optValue = BitConverter.GetBytes(1);
@@ -81,49 +109,80 @@ namespace Bullet.Client
             return socket.SendAsync(buffer, SocketFlags.None);
         }
 
-        private async Task<int> ReadAsync(Socket socket)
+
+        private int Send(Socket socket, ReadOnlyMemory<byte> buffer)
         {
-            var writer = _pipe.Writer;
-            int totalBytesRead = 0;
-
-            while (socket.Available > 0)
-            {
-                Memory<byte> memory = writer.GetMemory(BUFFER_SIZE);
-
-                try
-                {
-                    int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None);
-
-                    if (bytesRead == 0)
-                    {
-                        break;
-                    }
-                    
-                    totalBytesRead += bytesRead;
-
-                    writer.Advance(bytesRead);
-                }
-                catch (Exception ex)
-                {
-                    break;
-                }
-
-                FlushResult result = await writer.FlushAsync();
-
-                if (result.IsCompleted)
-                {
-                    break;
-                }
-            }
-            
-            //writer.Complete();
-
-            return totalBytesRead;
+            return socket.Send(buffer.Span, SocketFlags.None);
         }
 
-        private async ValueTask ReadAsyncTwo(Socket socket)
+
+        private async ValueTask ReadSmallAsync(Socket socket)
         {
-            _totalReads++;
+
+            try
+            {
+                _totalReads++;
+
+                var buffer = _buffer.Slice(_totalBytesRead, 512);
+
+                var readBytes = await socket.ReceiveAsync(buffer, SocketFlags.None);
+                
+                _totalBytesRead += readBytes;
+
+                var responseSpan = buffer.Slice(0, readBytes);
+                
+                while (!HttpStreamHelper.IsEndOfHeader(_buffer.Span.Slice(0, readBytes)))
+                {
+                    readBytes = await socket.ReceiveAsync(_buffer, SocketFlags.None);
+                }
+            }
+            catch
+            {
+
+            }
+            finally
+            {
+
+            }
+        }
+
+        private async Task ReadAsync(Socket socket)
+        {
+            //await _lock.WaitAsync();
+
+            try
+            {
+                int readBytes = await socket.ReceiveAsync(_buffer, SocketFlags.None);
+
+                if (readBytes == 0)
+                    return;
+
+                var responseSpan = _buffer.Slice(0, readBytes);
+                var statusCode = BulletHttpHeader.GetStatusCode(responseSpan.Span);
+                var responseType = BulletHttpHeader.GetResponseType(responseSpan.Span);
+
+                if (responseType == ResponseType.Chunked)
+                {
+                    while (!HttpStreamHelper.IsEndOfChunkedStream(_buffer.Span.Slice(0, readBytes)))
+                    {
+                        readBytes = await socket.ReceiveAsync(_buffer, SocketFlags.None);
+                    }
+                }
+
+                _totalReads++;
+
+            }
+            catch
+            {
+
+            }
+            finally
+            {
+                //_lock.Release();
+            }
+        }
+        private async Task ReadAsyncFastest(Socket socket)
+        {
             await _lock.WaitAsync();
 
             try
@@ -144,6 +203,9 @@ namespace Bullet.Client
                         readBytes = await socket.ReceiveAsync(_buffer, SocketFlags.None);
                     }
                 }
+
+                _totalReads++;
+
             }
             catch
             {
@@ -155,9 +217,45 @@ namespace Bullet.Client
             }
         }
 
+        private void Read(Socket socket)
+        {
+            //await _lock.WaitAsync();
+
+            try
+            {
+                int readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+
+                if (readBytes == 0)
+                    return;
+
+                var responseSpan = _buffer.Slice(0, readBytes);
+                var statusCode = BulletHttpHeader.GetStatusCode(responseSpan.Span);
+                var responseType = BulletHttpHeader.GetResponseType(responseSpan.Span);
+
+                if (responseType == ResponseType.Chunked)
+                {
+                    while (!HttpStreamHelper.IsEndOfChunkedStream(_buffer.Span.Slice(0, readBytes)))
+                    {
+                        readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+                    }
+                }
+
+                _totalReads++;
+
+            }
+            catch
+            {
+
+            }
+            finally
+            {
+                //_lock.Release();
+            }
+        }
+
         public async Task WaitRequestsRespons()
         {
-            //await Task.WhenAll(_readTasks);
+            await Task.WhenAll(_readTasks);
         }
         private void Connect()
         {
