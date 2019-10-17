@@ -11,12 +11,11 @@ namespace Bullet.Test.CoreTest
     public class BulletClientTest
     {
         [Fact]
-        public async void GetAsyncForOneSecondTest()
+        public void GetAsyncForOneSecondTest()
         {
             var url = "http://localhost:5000/";
 
             BulletClient client = new BulletClient(url);
-            client.OnRequestBegin += OnClientRequestBegin;
             var duration = TimeSpan.FromSeconds(1);
             var sw = Stopwatch.StartNew();
 
@@ -24,17 +23,11 @@ namespace Bullet.Test.CoreTest
 
             while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
             {
-                await client.GetAsync();
+                client.Get();
 
                 index++;
             }
-
-
         }
 
-        private async void OnClientRequestBegin(object sender, int e)
-        {
-
-        }
     }
 }

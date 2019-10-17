@@ -15,7 +15,7 @@ namespace Bullet.Test.CoreTest
 
             var manager = new BulletManager(url);
 
-            await manager.StartGetAsync(125, 1);
+            await manager.StartGetAsync(1, 1);
 
             var totalSeconds = manager.TotalSeconds;
             var totalRequests = manager.TotalRequests;

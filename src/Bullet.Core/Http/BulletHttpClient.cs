@@ -19,8 +19,7 @@ namespace Bullet.Core.Http
         private Memory<byte> _request;
         private CancellationToken _ctk;
         private Stopwatch _localWatch;
-        private Stream _stream;
-
+        
         public BulletHttpClient(string url)
         {
             _uri = new Uri(url);
@@ -179,9 +178,9 @@ namespace Bullet.Core.Http
 
                 result = new BulletHttpResponse(statusCode, length, sw.Elapsed.TotalMilliseconds, _localWatch.Elapsed.TotalMilliseconds);
             }
-            catch
+            catch(Exception ex)
             {
-
+                Debug.WriteLine($"Error: {ex}");
             }
             finally
             {

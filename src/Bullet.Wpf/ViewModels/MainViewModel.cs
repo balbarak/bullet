@@ -1,6 +1,7 @@
 ﻿using Bullet.Core;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,7 +16,6 @@ namespace Bullet.Wpf
         private int _duration = 1;
         private BulletManager _manager;
         private double _progress;
-        private int _secondElapsed = 1;
         private int _totalRequest;
         private int _totalSuccessRequest;
         private int _totalFailedRequest;
@@ -23,25 +23,23 @@ namespace Bullet.Wpf
         private double _lowestRequestPerSecond;
         private double _averageRequestPerSecond;
         private CancellationTokenSource _ctk;
+        private SemaphoreSlim _lock;
+
         public double LowsetRequestPerSecond
         {
             get { return _lowestRequestPerSecond; }
             set { SetProperty(ref _lowestRequestPerSecond, value); }
         }
-
         public double AverageRequestPerSecond
         {
             get { return _averageRequestPerSecond; }
             set { SetProperty(ref _averageRequestPerSecond, value); }
         }
-
         public double MaxRequestPerSecond
         {
             get { return _maxRequestPerSecond; }
             set { SetProperty(ref _maxRequestPerSecond, value); }
         }
-
-
         public string Url
         {
             get { return _url; }
@@ -81,11 +79,15 @@ namespace Bullet.Wpf
         public ICommand StartCommand => new AsyncCommand(Start);
         public ICommand CancelCommand => new AsyncCommand(Cancel);
 
+        public MainViewModel()
+        {
+            _lock = new SemaphoreSlim(1);
+        }
 
         private async Task Start()
         {
             _ctk = new CancellationTokenSource();
-            
+
             IsBusy = true;
 
             if (_manager != null)
@@ -97,6 +99,11 @@ namespace Bullet.Wpf
 
             var duration = TimeSpan.FromSeconds(_duration);
 
+            var updatProgressTask = UpdateProgress(duration);
+
+            await _manager.StartGetAsync(_numberOfConnections, _duration);
+
+            await updatProgressTask;
 
             IsBusy = false;
         }
@@ -110,13 +117,12 @@ namespace Bullet.Wpf
             AverageRequestPerSecond = 0;
             MaxRequestPerSecond = 0;
             LowsetRequestPerSecond = 0;
-            _secondElapsed = 1;
-            //_manager = new BulletManager(Url, NumberOfConnections, Duration);
+            _manager = new BulletManager(Url);
         }
 
         private Task Cancel()
         {
-            
+
             IsBusy = false;
 
             return Task.CompletedTask;
@@ -124,14 +130,44 @@ namespace Bullet.Wpf
 
         private void RemoveManagerEvents()
         {
-      
+
         }
 
         private void AddManagerEvents()
         {
+            _manager.OnFinished += OnManagerFinished;
+        }
+
+        private void OnManagerFinished(object sender, EventArgs e)
+        {
+            TotalRequest = _manager.TotalRequests;
+        }
+
+        private void OnClientFinished(object sender, int e)
+        {
+            //TotalRequest++;
 
         }
 
-     
+        private void OnClientStart(object sender, int e)
+        {
+            //TotalRequest++;
+        }
+
+        private async Task UpdateProgress(TimeSpan duration)
+        {
+
+            var sw = Stopwatch.StartNew();
+
+            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+            {
+
+                Progress = (sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds) * 100;
+                TotalRequest = _manager.TotalRequests;
+                await Task.Delay(10);
+            }
+
+
+        }
     }
 }

@@ -19,39 +19,22 @@ namespace Bullet.Core
 
         public int Index { get; private set; } = 1;
 
-        public event EventHandler<int> OnRequestBegin;
-        public event EventHandler<int> OnRequestEnd;
-
         public BulletClient(string url, int? index = null)
         {
             _client = new BulletHttpClient(url);
 
             if (index.HasValue)
                 Index = index.Value;
-        }
 
-        public async ValueTask GetAsync()
-        {
-            OnRequestBegin?.Invoke(this, Index);
-
-            var result = await _client.GetAsync();
-
-            if (result != null)
-                Responses.Add(result);
-
-            OnRequestEnd?.Invoke(this, Index);
         }
 
         public void Get()
         {
-            OnRequestBegin?.Invoke(this, Index);
-
             var result = _client.Get();
 
             if (result != null)
                 Responses.Add(result);
 
-            OnRequestEnd?.Invoke(this, Index);
         }
 
         public ValueTask DisposeAsync()

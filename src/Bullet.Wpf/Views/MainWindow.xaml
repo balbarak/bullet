@@ -104,7 +104,7 @@
                         <TextBlock Text="Total Requests" />
                         <TextBlock
                             FontSize="25"
-                            Text="{Binding TotalRequest}" />
+                            Text="{Binding TotalRequest, StringFormat={}{0:N0}}" />
                     </StackPanel>
                     <StackPanel>
                         <TextBlock Text="Total Success Request" />
