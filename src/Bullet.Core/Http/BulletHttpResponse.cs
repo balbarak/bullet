@@ -10,11 +10,14 @@ namespace Bullet.Core.Http
         public int Length { get; private set; }
         public double Latency { get; private set; }
 
-        public BulletHttpResponse(int statusCode, int length, double latency)
+        public double Duration { get; set; }
+
+        public BulletHttpResponse(int statusCode, int length, double latency,double duration)
         {
             StatusCode = statusCode;
             Length = length;
             Latency = latency;
+            Duration = duration;
         }
 
     }

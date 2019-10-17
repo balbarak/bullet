@@ -97,11 +97,6 @@ namespace Bullet.Wpf
 
             var duration = TimeSpan.FromSeconds(_duration);
 
-            await Task.Run(() =>
-            {
-                return _manager.StartDuration(duration,_numberOfConnections,_ctk.Token);
-            });
-
 
             IsBusy = false;
         }
@@ -116,13 +111,12 @@ namespace Bullet.Wpf
             MaxRequestPerSecond = 0;
             LowsetRequestPerSecond = 0;
             _secondElapsed = 1;
-            _manager = new BulletManager(Url, NumberOfConnections, Duration);
+            //_manager = new BulletManager(Url, NumberOfConnections, Duration);
         }
 
         private Task Cancel()
         {
-            _manager?.Cancell();
-
+            
             IsBusy = false;
 
             return Task.CompletedTask;
@@ -130,58 +124,14 @@ namespace Bullet.Wpf
 
         private void RemoveManagerEvents()
         {
-            _manager.OnClientBeginRequest -= OnClientBeginRequest;
-            _manager.OnSecondElapsed -= OnManagerTimerElapsed;
+      
         }
 
         private void AddManagerEvents()
         {
-            _manager.OnClientBeginRequest += OnClientBeginRequest;
-            _manager.OnSecondElapsed += OnManagerTimerElapsed;
-            _manager.OnClientSuccess += OnClientSuccess;
-            _manager.OnClientFailed += OnClientFailed;
-            _manager.OnCompleted += OnManagerCompleted;
-        }
-
-        private void OnClientFailed(object sender, EventArgs e)
-        {
-            Interlocked.Increment(ref _totalFailedRequest);
-
-            OnPropertyChanged(nameof(TotalFailedRequest));
-        }
-
-        private void OnClientSuccess(object sender, EventArgs e)
-        {
-            Interlocked.Increment(ref _totalSuccessRequest);
-
-            OnPropertyChanged(nameof(TotalSuccessRequest));
-        }
-
-        private void OnManagerTimerElapsed(object sender, EventArgs e)
-        {
-            _secondElapsed++;
-
-            double current = (double)_secondElapsed / (double)Duration;
-
-            Progress = current * 100.0;
 
         }
-        private void OnManagerCompleted(object sender, EventArgs e)
-        {
-            var manager = sender as BulletManager;
 
-            MaxRequestPerSecond = manager.MaxRequestPerSecond;
-            LowsetRequestPerSecond = manager.LowsetRequestPerSecond;
-            AverageRequestPerSecond = manager.TotalAverageRequestPerSecond;
-
-            IsBusy = false;
-        }
-
-        private void OnClientBeginRequest(object sender, EventArgs e)
-        {
-            Interlocked.Increment(ref _totalRequest);
-
-            OnPropertyChanged(nameof(TotalRequest));
-        }
+     
     }
 }

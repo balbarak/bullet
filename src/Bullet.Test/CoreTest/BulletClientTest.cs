@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Bullet.Test.CoreTest
@@ -15,7 +16,7 @@ namespace Bullet.Test.CoreTest
             var url = "http://localhost:5000/";
 
             BulletClient client = new BulletClient(url);
-
+            client.OnRequestBegin += OnClientRequestBegin;
             var duration = TimeSpan.FromSeconds(1);
             var sw = Stopwatch.StartNew();
 
@@ -28,6 +29,11 @@ namespace Bullet.Test.CoreTest
                 index++;
             }
 
+
+        }
+
+        private async void OnClientRequestBegin(object sender, int e)
+        {
 
         }
     }

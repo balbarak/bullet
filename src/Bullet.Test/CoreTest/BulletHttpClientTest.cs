@@ -39,9 +39,32 @@ namespace Bullet.Test.CoreTest
             {
                 var data = await client.GetAsync();
                 index++;
+            }
 
-                if (data != null)
-                    results.Add(data);
+
+        }
+
+        [Fact]
+        public void GetForOneSecondTest()
+        {
+            var url = "http://localhost:5000/";
+
+            BulletHttpClient client = new BulletHttpClient(url);
+
+            var duration = TimeSpan.FromSeconds(1);
+            var sw = Stopwatch.StartNew();
+
+            int index = 1;
+
+            List<BulletHttpResponse> results = new List<BulletHttpResponse>();
+
+            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+            {
+                 var result = client.Get();
+                
+                results.Add(result);
+
+                index++;
             }
 
 
