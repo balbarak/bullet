@@ -53,7 +53,6 @@ namespace Bullet.Core
                 tasks.Add(task);
             }
 
-
             await Task.WhenAll(tasks);
 
             sw.Stop();
@@ -61,17 +60,19 @@ namespace Bullet.Core
             Elapsed = sw.Elapsed;
         }
 
-        private async Task StartGetClient(BulletClient client, int durationInSeconds)
+        private Task StartGetClient(BulletClient client, int durationInSeconds)
         {
-
-            var duration = TimeSpan.FromSeconds(durationInSeconds);
-            var sw = Stopwatch.StartNew();
-
-            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+            return Task.Run(() =>
             {
-                await client.GetAsync()
-                    .ConfigureAwait(false);
-            }
+                var duration = TimeSpan.FromSeconds(durationInSeconds);
+                var sw = Stopwatch.StartNew();
+
+                while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+                {
+                    client.Get();
+                }
+            });
+            
         }
 
         private BulletClient CreateNewClient(int index)

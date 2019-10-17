@@ -42,6 +42,18 @@ namespace Bullet.Core
             OnRequestEnd?.Invoke(this, Index);
         }
 
+        public void Get()
+        {
+            OnRequestBegin?.Invoke(this, Index);
+
+            var result = _client.Get();
+
+            if (result != null)
+                Responses.Add(result);
+
+            OnRequestEnd?.Invoke(this, Index);
+        }
+
         public ValueTask DisposeAsync()
         {
             return new ValueTask();
