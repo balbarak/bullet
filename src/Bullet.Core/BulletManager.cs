@@ -32,47 +32,56 @@ namespace Bullet.Core
             _url = url;
         }
 
-        public Task StartGetAsync(int connections = 1, int durationInSeconds = 1)
+        public async Task StartGetAsync(int connections = 1, int durationInSeconds = 1)
         {
             GC.Collect();
 
-            return Task.Run(() =>
+            Clients.Clear();
+
+            SetupClients(connections);
+
+            var events = new List<ManualResetEventSlim>();
+            var threads = new List<Thread>();
+
+            var sw = Stopwatch.StartNew();
+
+            foreach (var item in Clients)
             {
-                Clients.Clear();
+                var resetEvent = new ManualResetEventSlim(false);
 
-                for (int i = 0; i < connections; i++)
-                {
-                    var client = CreateNewClient(i + 1);
-                    Clients.Add(client);
-                }
+                Thread thread;
 
-                var events = new List<ManualResetEventSlim>();
-                var threads = new List<Thread>();
+                thread = new Thread((index) => StartGetClient(item, durationInSeconds, sw, resetEvent));
 
-                var sw = Stopwatch.StartNew();
+                thread.Start();
 
-                foreach (var item in Clients)
-                {
-                    var resetEvent = new ManualResetEventSlim(false);
+                events.Add(resetEvent);
+            }
 
-                    Thread thread;
+            await WaitThreads(events);
 
-                    thread = new Thread((index) => StartGetClient(item, durationInSeconds,sw, resetEvent));
-                    
-                    thread.Start();
+            Elapsed = sw.Elapsed;
 
-                    events.Add(resetEvent);
-                }
+        }
 
-                for (var i = 0; i < events.Count; i += 50)
-                {
-                    var group = events.Skip(i).Take(50).Select(r => r.WaitHandle).ToArray();
-                    WaitHandle.WaitAll(group);
-                }
+        private void SetupClients(int connections)
+        {
+            for (int i = 0; i < connections; i++)
+            {
+                var client = CreateNewClient(i + 1);
+                Clients.Add(client);
+            }
+        }
 
-                Elapsed = sw.Elapsed;
-            });
-            
+        private Task WaitThreads(List<ManualResetEventSlim> events)
+        {
+            for (var i = 0; i < events.Count; i += 60)
+            {
+                var group = events.Skip(i).Take(50).Select(r => r.WaitHandle).ToArray();
+                WaitHandle.WaitAll(group);
+            }
+
+            return Task.CompletedTask;
         }
 
         private Task StartGetClientAsync(BulletClient client, int durationInSeconds)
@@ -90,8 +99,9 @@ namespace Bullet.Core
 
         }
 
-        private void StartGetClient(BulletClient client, int durationInSeconds,Stopwatch stopwatch,ManualResetEventSlim resetEventSlim)
+        private void StartGetClient(BulletClient client, int durationInSeconds, Stopwatch stopwatch, ManualResetEventSlim resetEventSlim)
         {
+
             try
             {
                 var duration = TimeSpan.FromSeconds(durationInSeconds);
@@ -129,6 +139,13 @@ namespace Bullet.Core
         private void OnClientRequestBeginInternal(object sender, int e)
         {
 
+        }
+
+        private int GetNumberOfThreads(int connecitons)
+        {
+            var proccess = Environment.ProcessorCount;
+
+            return 0;
         }
     }
 }
