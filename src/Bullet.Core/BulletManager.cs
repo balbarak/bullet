@@ -32,35 +32,50 @@ namespace Bullet.Core
             _url = url;
         }
 
-        public async ValueTask StartGetAsync(int connections = 1, int durationInSeconds = 1)
+        public Task StartGetAsync(int connections = 1, int durationInSeconds = 1)
         {
-            Clients.Clear();
+            GC.Collect();
 
-            for (int i = 0; i < connections; i++)
+            return Task.Run(() =>
             {
-                var client = CreateNewClient(i + 1);
-                Clients.Add(client);
-            }
+                Clients.Clear();
 
-            List<Task> tasks = new List<Task>();
+                for (int i = 0; i < connections; i++)
+                {
+                    var client = CreateNewClient(i + 1);
+                    Clients.Add(client);
+                }
 
-            var sw = Stopwatch.StartNew();
+                var events = new List<ManualResetEventSlim>();
+                var threads = new List<Thread>();
 
-            foreach (var item in Clients)
-            {
-                var task = StartGetClient(item, durationInSeconds);
+                var sw = Stopwatch.StartNew();
 
-                tasks.Add(task);
-            }
+                foreach (var item in Clients)
+                {
+                    var resetEvent = new ManualResetEventSlim(false);
 
-            await Task.WhenAll(tasks);
+                    Thread thread;
 
-            sw.Stop();
+                    thread = new Thread((index) => StartGetClient(item, durationInSeconds,sw, resetEvent));
+                    
+                    thread.Start();
 
-            Elapsed = sw.Elapsed;
+                    events.Add(resetEvent);
+                }
+
+                for (var i = 0; i < events.Count; i += 50)
+                {
+                    var group = events.Skip(i).Take(50).Select(r => r.WaitHandle).ToArray();
+                    WaitHandle.WaitAll(group);
+                }
+
+                Elapsed = sw.Elapsed;
+            });
+            
         }
 
-        private Task StartGetClient(BulletClient client, int durationInSeconds)
+        private Task StartGetClientAsync(BulletClient client, int durationInSeconds)
         {
             return Task.Run(() =>
             {
@@ -72,7 +87,28 @@ namespace Bullet.Core
                     client.Get();
                 }
             });
-            
+
+        }
+
+        private void StartGetClient(BulletClient client, int durationInSeconds,Stopwatch stopwatch,ManualResetEventSlim resetEventSlim)
+        {
+            try
+            {
+                var duration = TimeSpan.FromSeconds(durationInSeconds);
+
+                while (duration.TotalMilliseconds > stopwatch.Elapsed.TotalMilliseconds)
+                {
+                    client.Get();
+                }
+
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                resetEventSlim.Set();
+            }
         }
 
         private BulletClient CreateNewClient(int index)
