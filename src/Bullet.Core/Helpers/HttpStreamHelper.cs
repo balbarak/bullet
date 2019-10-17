@@ -4,6 +4,13 @@ using System.Text;
 
 namespace Bullet.Core.Helpers
 {
+    internal enum ResponseType
+    {
+        Unknown,
+        Chunked,
+        ContentLength
+    }
+
     internal class HttpStreamHelper
     {
         public static bool IsEndOfChunkedStream(ReadOnlySpan<byte> buffer)
@@ -55,6 +62,26 @@ namespace Bullet.Core.Helpers
             index += header.Length;
             length = buffer.Slice(index).IndexOf(HttpStrings.HeaderReturn.Span);
             return true;
+        }
+
+        public static int GetStatusCode(ReadOnlySpan<byte> buffer)
+        {
+            return ConvertToInt(buffer.Slice(9, 3));
+        }
+
+        public static ResponseType GetResponseType(ReadOnlySpan<byte> buffer)
+        {
+            if (buffer.IndexOf(HttpStrings.HeaderContentLength.Span) != -1)
+            {
+                return ResponseType.ContentLength;
+            }
+
+            if (buffer.IndexOf(HttpStrings.HeaderTransferEncoding.Span) != -1)
+            {
+                return ResponseType.Chunked;
+            }
+
+            return ResponseType.Unknown;
         }
 
         public static int ConvertToInt(ReadOnlySpan<byte> buffer)

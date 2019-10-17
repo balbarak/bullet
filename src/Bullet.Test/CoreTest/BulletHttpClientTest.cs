@@ -1,32 +1,31 @@
-﻿using Bullet.Client;
+﻿using Bullet.Core;
+using Bullet.Core.Http;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
-using System.Threading.Tasks;
 using Xunit;
 
-namespace Bullet.Test
+namespace Bullet.Test.CoreTest
 {
     public class BulletHttpClientTest
     {
         [Fact]
         public async void GetAsyncTest()
         {
-            var url = "http://localhost:5000/";
+            var url = "http://btx-web/";
 
             BulletHttpClient client = new BulletHttpClient(url);
 
-            await client.GetAsync();
+            var data = await client.GetAsync();
 
-            //await client.ParseRequest();
         }
 
         [Fact]
         public async void GetAsyncForOneSecondTest()
         {
             var url = "http://localhost:5000/";
-            
+
             BulletHttpClient client = new BulletHttpClient(url);
 
             var duration = TimeSpan.FromSeconds(1);
@@ -34,13 +33,18 @@ namespace Bullet.Test
 
             int index = 1;
 
+            List<BulletHttpResponse> results = new List<BulletHttpResponse>();
+
             while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
             {
-                await client.GetAsync();
+                var data = await client.GetAsync();
                 index++;
+
+                if (data != null)
+                    results.Add(data);
             }
 
-            var ee = "";
+
         }
     }
 }

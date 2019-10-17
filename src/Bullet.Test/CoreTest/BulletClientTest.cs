@@ -1,19 +1,20 @@
-using Bullet.Client;
-using Bullet.Core;
+﻿using Bullet.Core;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 using Xunit;
 
-namespace Bullet.Test
+namespace Bullet.Test.CoreTest
 {
     public class BulletClientTest
     {
         [Fact]
-        public async void GetTest()
+        public async void GetAsyncForOneSecondTest()
         {
             var url = "http://localhost:5000/";
 
-            FastBulletClient client = new FastBulletClient();
+            BulletClient client = new BulletClient(url);
 
             var duration = TimeSpan.FromSeconds(1);
             var sw = Stopwatch.StartNew();
@@ -22,9 +23,11 @@ namespace Bullet.Test
 
             while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
             {
-                await client.GetAsync(url);
+                await client.GetAsync();
+
                 index++;
             }
+
 
         }
     }

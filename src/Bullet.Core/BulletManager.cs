@@ -63,7 +63,7 @@ namespace Bullet.Core
         public BulletManager(string url)
         {
             _url = url;
-            _client = new BulletClient(1, _url);
+            _client = new BulletClient(_url);
             _bulletClients = new ConcurrentQueue<BulletClient>();
 
             SetupClients();
@@ -122,7 +122,7 @@ namespace Bullet.Core
             {
                 try
                 {
-                    await _client.GetAsyncFast(localCtk);
+                    //await _client.GetAsyncFast(localCtk);
                 }
                 catch (Exception)
                 {
