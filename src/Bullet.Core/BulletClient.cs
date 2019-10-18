@@ -37,6 +37,14 @@ namespace Bullet.Core
 
         }
 
+        public async Task GetAsync()
+        {
+            var result = await _client.GetAsync();
+
+            if (result != null)
+                Responses.Add(result);
+        }
+
         public ValueTask DisposeAsync()
         {
             return new ValueTask();

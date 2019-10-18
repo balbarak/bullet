@@ -157,16 +157,23 @@ namespace Bullet.Wpf
         private async Task UpdateProgress(TimeSpan duration)
         {
 
-            var sw = Stopwatch.StartNew();
+            try
+            {
+                var sw = Stopwatch.StartNew();
 
-            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+                while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+                {
+
+                    Progress = (sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds) * 100;
+                    TotalRequest = _manager.TotalRequests;
+                    await Task.Delay(10);
+                }
+
+            }
+            catch (Exception ex)
             {
 
-                Progress = (sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds) * 100;
-                TotalRequest = _manager.TotalRequests;
-                await Task.Delay(10);
             }
-
 
         }
     }

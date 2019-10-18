@@ -19,7 +19,10 @@ namespace Bullet.Core.Http
         private Memory<byte> _request;
         private CancellationToken _ctk;
         private Stopwatch _localWatch;
-        
+        private bool _isConnecting = false;
+        private bool _isConnected = false;
+        private SemaphoreSlim _lock = new SemaphoreSlim(1);
+
         public BulletHttpClient(string url)
         {
             _uri = new Uri(url);
@@ -32,32 +35,28 @@ namespace Bullet.Core.Http
             SetupTcpClient();
         }
 
-        public async ValueTask<BulletHttpResponse> GetAsync(CancellationToken ctk = default)
+        public async Task<BulletHttpResponse> GetAsync(CancellationToken ctk = default)
         {
             _ctk = ctk;
 
             _localWatch.Restart();
 
-            await ConnectAsync();
-
             var socket = _tcpClient.Client;
-
             var header = _request;
 
-            await SendAsnc(socket, header, _ctk)
+            await ConnectAsync()
                 .ConfigureAwait(false);
 
-            var result = await ReadAsync(socket, _ctk)
-                .ConfigureAwait(false);
+            await SendAsnc(socket, header, _ctk).AsTask();
 
-            //var readTask = ReadAsync(socket, _ctk);
+            var result = await ReadAsync(socket, _ctk).AsTask();
 
             return result;
         }
 
         public BulletHttpResponse Get()
         {
-            
+
             _localWatch.Restart();
 
             Connect();
@@ -66,7 +65,7 @@ namespace Bullet.Core.Http
 
             var header = _request;
 
-            Send(socket,header);
+            Send(socket, header);
 
             return Read(socket);
         }
@@ -178,7 +177,7 @@ namespace Bullet.Core.Http
 
                 result = new BulletHttpResponse(statusCode, length, sw.Elapsed.TotalMilliseconds, _localWatch.Elapsed.TotalMilliseconds);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Debug.WriteLine($"Error: {ex}");
             }
@@ -203,12 +202,12 @@ namespace Bullet.Core.Http
             //_stream = _tcpClient.GetStream();
         }
 
-        private async ValueTask ConnectAsync()
+        private Task ConnectAsync()
         {
             if (_tcpClient.Connected)
-                return;
+                return Task.CompletedTask;
 
-            await _tcpClient.ConnectAsync(_uri.Host, _uri.Port);
+            return _tcpClient.ConnectAsync(_uri.Host, _uri.Port);
         }
 
         private void Connect()

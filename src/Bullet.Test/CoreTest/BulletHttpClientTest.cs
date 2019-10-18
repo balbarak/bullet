@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Bullet.Test.CoreTest
@@ -29,20 +31,31 @@ namespace Bullet.Test.CoreTest
             BulletHttpClient client = new BulletHttpClient(url);
 
             var duration = TimeSpan.FromSeconds(1);
-            var sw = Stopwatch.StartNew();
 
             int index = 1;
 
             List<BulletHttpResponse> results = new List<BulletHttpResponse>();
+            var tasks = new List<Task>();
+            var processCount = Environment.ProcessorCount;
 
-            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+            var sw = Stopwatch.StartNew();
+
+            //for (int i = 0; i < processCount; i++)
+            //{
+            //    ThreadPool.QueueUserWorkItem<int>((item) => tasks.Add(client.GetAsync()), 1, false);
+            //    index++;
+            //}
+
+            Parallel.For(0, processCount, async (index) =>
             {
-                var data = await client.GetAsync();
-                index++;
-            }
-
-
+                while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+                {
+                   tasks.Add(client.GetAsync());
+                    Interlocked.Increment(ref index);
+                };
+            });
         }
+
 
         [Fact]
         public void GetForOneSecondTest()
@@ -60,8 +73,8 @@ namespace Bullet.Test.CoreTest
 
             while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
             {
-                 var result = client.Get();
-                
+                var result = client.Get();
+
                 results.Add(result);
 
                 index++;
