@@ -142,17 +142,7 @@ namespace Bullet.Wpf
         private void OnManagerFinished(object sender, EventArgs e)
         {
             TotalRequest = _manager.TotalRequests;
-        }
-
-        private void OnClientFinished(object sender, int e)
-        {
-            //TotalRequest++;
-
-        }
-
-        private void OnClientStart(object sender, int e)
-        {
-            //TotalRequest++;
+            AverageRequestPerSecond = _manager.RequestPerSecond;
         }
 
         private async Task UpdateProgress(TimeSpan duration)

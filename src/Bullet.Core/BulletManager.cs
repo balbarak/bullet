@@ -17,7 +17,7 @@ namespace Bullet.Core
 
         public BulletClient[] Clients { get; private set; }
 
-        public double TotalSeconds => TimeSpan.FromMilliseconds(Clients.SelectMany(a => a.Responses).Sum(a => a.Duration)).TotalSeconds;
+        public double TotalSeconds => TimeSpan.FromMilliseconds(Clients.SelectMany(a => a.Responses).Sum(a => a.Latency)).TotalSeconds;
 
         private int _totalRequests;
         private int _failedRequests;
@@ -58,6 +58,8 @@ namespace Bullet.Core
                       {
                           tasks[index] = StartGetClient(Clients[index], duration, sw);
                       });
+
+                      Elapsed = sw.Elapsed;
 
                       await Task.WhenAll(tasks);
 
