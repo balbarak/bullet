@@ -99,11 +99,12 @@ namespace Bullet.Wpf
 
             var duration = TimeSpan.FromSeconds(_duration);
 
+            var progressTask = _manager.StartGetAsync(_numberOfConnections, _duration);
             var updatProgressTask = UpdateProgress(duration);
 
-            await _manager.StartGetAsync(_numberOfConnections, _duration);
+            await Task.WhenAll(updatProgressTask, progressTask);
 
-            await updatProgressTask;
+            //await updatProgressTask;
 
             IsBusy = false;
         }
@@ -166,7 +167,7 @@ namespace Bullet.Wpf
 
                     Progress = (sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds) * 100;
                     TotalRequest = _manager.TotalRequests;
-                    await Task.Delay(10);
+                    await Task.Delay(30);
                 }
 
             }
