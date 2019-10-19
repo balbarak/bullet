@@ -40,20 +40,14 @@ namespace Bullet.Test.CoreTest
 
             var sw = Stopwatch.StartNew();
 
-            //for (int i = 0; i < processCount; i++)
-            //{
-            //    ThreadPool.QueueUserWorkItem<int>((item) => tasks.Add(client.GetAsync()), 1, false);
-            //    index++;
-            //}
-
-            Parallel.For(0, processCount, async (index) =>
+            while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
             {
-                while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
-                {
-                   tasks.Add(client.GetAsync());
-                    Interlocked.Increment(ref index);
-                };
-            });
+                var result = await client.GetAsync();
+
+                results.Add(result);
+
+                index++;
+            }
         }
 
 

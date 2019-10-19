@@ -45,28 +45,42 @@ namespace Bullet.Core
             {
                 IsBusy = true;
 
-                await Task.Run(async () =>
+                await Task.Run(() =>
                   {
                       GC.Collect();
 
-                      OnStart?.Invoke(this, EventArgs.Empty);
+                      var proccessCount = Environment.ProcessorCount;
 
-                      SetupClients(connections);
+                      if (connections > proccessCount)
+                          connections = proccessCount;
 
                       var events = new List<ManualResetEventSlim>();
                       var threads = new Thread[connections];
-                      var tasks = new Task[connections];
                       var duration = TimeSpan.FromSeconds(durationInSeconds);
                       var sw = new Stopwatch();
+
+
+                      SetupClients(connections);
+
+                      OnStart?.Invoke(this, EventArgs.Empty);
+
+                      for (int i = 0; i < connections; i++)
+                      {
+                          var thread = new Thread(async (index) => await StartGetClient(Clients[(int)index], duration, sw));
+                          threads[i] = thread;
+                      }
+
                       sw.Start();
 
-                      Parallel.For(0, connections, (index, state) =>
-                        {
-                            tasks[index] = StartGetClient(Clients[index], duration, sw);
+                      for (int i = 0; i < threads.Length; i++)
+                      {
+                          threads[i].Start(i);
+                      }
 
-                        });
-
-                      await Task.WhenAll(tasks);
+                      foreach (var item in threads)
+                      {
+                          item.Join();
+                      }
 
                   });
 
@@ -105,7 +119,7 @@ namespace Bullet.Core
 
                     for (int i = 0; i < connections; i++)
                     {
-                        var thread = new Thread((index) => StartGetClient(Clients[(int)index], duration, sw));
+                        var thread = new Thread(async (index) => await StartGetClient(Clients[(int)index], duration, sw));
                         threads[i] = thread;
                     }
 
@@ -116,7 +130,10 @@ namespace Bullet.Core
                         threads[i].Start(i);
                     }
 
-                    Parallel.ForEach(threads, (item) => item.Join());
+                    foreach (var item in threads)
+                    {
+                        item.Join();
+                    }
 
                 });
             }
@@ -171,6 +188,7 @@ namespace Bullet.Core
 
             return Task.CompletedTask;
         }
+
 
         private BulletClient CreateNewClient(int index)
         {

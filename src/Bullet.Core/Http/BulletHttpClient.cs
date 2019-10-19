@@ -47,9 +47,9 @@ namespace Bullet.Core.Http
             await ConnectAsync()
                 .ConfigureAwait(false);
 
-            await SendAsnc(socket, header, _ctk).AsTask();
+            await SendAsnc(socket, header, _ctk);
 
-            var result = await ReadAsync(socket, _ctk).AsTask();
+            var result = await ReadAsync(socket, _ctk);
 
             return result;
         }

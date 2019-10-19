@@ -25,6 +25,13 @@ namespace Bullet.Wpf
         private CancellationTokenSource _ctk;
         private TimeSpan _durationSpan;
         private System.Timers.Timer _timer;
+        private double _elapsed;
+
+        public double Elapsed
+        {
+            get { return _elapsed; }
+            set { SetProperty(ref _elapsed, value); }
+        }
 
         public bool UseOptimazedNumberOfThreads
         {
@@ -85,7 +92,7 @@ namespace Bullet.Wpf
             _durationSpan = new TimeSpan();
             _timer = new System.Timers.Timer
             {
-                Interval = 500
+                Interval = 50
             };
             _timer.Elapsed += OnTimer;
             _timer.Start();
@@ -128,6 +135,7 @@ namespace Bullet.Wpf
             TotalRequest = 0;
             TotalFailedRequest = 0;
             RequestsPerSecond = 0;
+            Connections = 0;
             _manager = new BulletManager(Url);
         }
 
@@ -161,12 +169,10 @@ namespace Bullet.Wpf
         {
             if (_manager != null && _manager.IsBusy)
             {
-                App.Current.Dispatcher.Invoke(() =>
-                {
-                    Progress = (_manager.Elapsed.TotalMilliseconds / _durationSpan.TotalMilliseconds ) * 100.0;
-                    TotalRequest = _manager.TotalRequests;
-                },System.Windows.Threading.DispatcherPriority.Render);
-                
+                Progress = (_manager.Elapsed.TotalMilliseconds / _durationSpan.TotalMilliseconds) * 100.0;
+                TotalRequest = _manager.TotalRequests;
+                Elapsed = _manager.Elapsed.TotalSeconds;
+
             }
         }
     }
