@@ -24,9 +24,9 @@ namespace Bullet.Wpf
         private bool _useOptimazedNumberOfThreads = true;
         private CancellationTokenSource _ctk;
         private TimeSpan _durationSpan;
-        private System.Timers.Timer _timer;
         private double _elapsed;
         private Stopwatch _stopwatch;
+        System.Windows.Threading.DispatcherTimer _timer;
         public double Elapsed
         {
             get { return _elapsed; }
@@ -90,11 +90,23 @@ namespace Bullet.Wpf
         public MainViewModel()
         {
             _durationSpan = new TimeSpan();
-            
-            UpdateProgress();
 
+            _timer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Render)
+            {
+                Interval = TimeSpan.FromMilliseconds(200)
+            };
+            _timer.Tick += OnTimerTick;
+            _timer.Start();
+
+            _manager = new BulletManager();
+
+            SetupManagerEvents();
         }
 
+        private async void OnTimerTick(object sender, EventArgs e)
+        {
+            await UpdateProgress();
+        }
 
         private async Task Start()
         {
@@ -102,18 +114,14 @@ namespace Bullet.Wpf
 
             IsBusy = true;
 
-            if (_manager != null)
-                RemoveManagerEvents();
-
             Reset();
 
-            AddManagerEvents();
 
             _durationSpan = TimeSpan.FromSeconds(_duration);
 
             _stopwatch = Stopwatch.StartNew();
-            
-            await _manager.StartGetAsyncSeparateTimer(_numberOfConnections, _duration,_ctk.Token);
+
+            await _manager.StartGetAsyncSystemDate(Url,_numberOfConnections, _duration, _ctk.Token);
 
             _stopwatch.Stop();
 
@@ -133,7 +141,6 @@ namespace Bullet.Wpf
             TotalFailedRequest = 0;
             RequestsPerSecond = 0;
             Connections = 0;
-            _manager = new BulletManager(Url);
         }
 
         private Task Cancel()
@@ -144,12 +151,7 @@ namespace Bullet.Wpf
             return Task.CompletedTask;
         }
 
-        private void RemoveManagerEvents()
-        {
-            _manager.OnFinished -= OnManagerFinished;
-        }
-
-        private void AddManagerEvents()
+        private void SetupManagerEvents()
         {
             _manager.OnFinished += OnManagerFinished;
         }
@@ -162,19 +164,17 @@ namespace Bullet.Wpf
             Connections = _manager.Connections;
         }
 
-        private async Task UpdateProgress()
+        private Task UpdateProgress()
         {
-            while (true)
-            {
-                if (IsBusy && _durationSpan.TotalMilliseconds > _stopwatch?.Elapsed.TotalMilliseconds)
-                {
-                    Progress = (_manager.Elapsed.TotalMilliseconds / _durationSpan.TotalMilliseconds) * 100.0;
-                    TotalRequest = _manager.TotalRequests;
-                    Elapsed = _manager.Elapsed.TotalSeconds;
-                }
 
-                await Task.Delay(50);
+            if (IsBusy && _manager != null)
+            {
+                Progress = (_manager.Elapsed.TotalMilliseconds / _durationSpan.TotalMilliseconds) * 100.0;
+                TotalRequest = _manager.TotalRequests;
+                Elapsed = _manager.Elapsed.TotalSeconds;
             }
+
+            return Task.CompletedTask;
         }
     }
 }

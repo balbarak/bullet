@@ -14,7 +14,7 @@ namespace Bullet.Test.CoreTest
         {
             var url = "http://localhost:5000/";
 
-            var manager = new BulletManager(url);
+            var manager = new BulletManager();
 
             await manager.StartGetAsync(125, 1);
 
