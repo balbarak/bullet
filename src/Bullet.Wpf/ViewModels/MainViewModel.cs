@@ -26,7 +26,7 @@ namespace Bullet.Wpf
         private TimeSpan _durationSpan;
         private System.Timers.Timer _timer;
         private double _elapsed;
-
+        private Stopwatch _stopwatch;
         public double Elapsed
         {
             get { return _elapsed; }
@@ -90,20 +90,11 @@ namespace Bullet.Wpf
         public MainViewModel()
         {
             _durationSpan = new TimeSpan();
-            _timer = new System.Timers.Timer
-            {
-                Interval = 50
-            };
-            _timer.Elapsed += OnTimer;
-            _timer.Start();
-        }
-
-        private void OnTimer(object sender, System.Timers.ElapsedEventArgs e)
-        {
-
+            
             UpdateProgress();
 
         }
+
 
         private async Task Start()
         {
@@ -120,10 +111,16 @@ namespace Bullet.Wpf
 
             _durationSpan = TimeSpan.FromSeconds(_duration);
 
-            if (UseOptimazedNumberOfThreads)
-                await _manager.StartGetAsync(_numberOfConnections, _duration);
-            else
-                await _manager.StartGetAsyncThreads(_numberOfConnections, _duration);
+            _stopwatch = Stopwatch.StartNew();
+            
+            await _manager.StartGetAsyncSeparateTimer(_numberOfConnections, _duration,_ctk.Token);
+
+            _stopwatch.Stop();
+
+            //if (UseOptimazedNumberOfThreads)
+            //    await _manager.StartGetAsync(_numberOfConnections, _duration);
+            //else
+            //    await _manager.StartGetAsyncThreads(_numberOfConnections, _duration);
 
 
             IsBusy = false;
@@ -165,14 +162,18 @@ namespace Bullet.Wpf
             Connections = _manager.Connections;
         }
 
-        private void UpdateProgress()
+        private async Task UpdateProgress()
         {
-            if (_manager != null && _manager.IsBusy)
+            while (true)
             {
-                Progress = (_manager.Elapsed.TotalMilliseconds / _durationSpan.TotalMilliseconds) * 100.0;
-                TotalRequest = _manager.TotalRequests;
-                Elapsed = _manager.Elapsed.TotalSeconds;
+                if (IsBusy && _durationSpan.TotalMilliseconds > _stopwatch?.Elapsed.TotalMilliseconds)
+                {
+                    Progress = (_manager.Elapsed.TotalMilliseconds / _durationSpan.TotalMilliseconds) * 100.0;
+                    TotalRequest = _manager.TotalRequests;
+                    Elapsed = _manager.Elapsed.TotalSeconds;
+                }
 
+                await Task.Delay(50);
             }
         }
     }

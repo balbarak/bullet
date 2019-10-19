@@ -3,7 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,9 +22,7 @@ namespace Bullet.Core.Http
         private Memory<byte> _request;
         private CancellationToken _ctk;
         private Stopwatch _localWatch;
-        private bool _isConnecting = false;
-        private bool _isConnected = false;
-        private SemaphoreSlim _lock = new SemaphoreSlim(1);
+        private Stream _stram;
 
         public BulletHttpClient(string url)
         {
@@ -65,7 +66,7 @@ namespace Bullet.Core.Http
 
             var header = _request;
 
-            Send(socket, header);
+            SendStream(header);
 
             return Read(socket);
         }
@@ -78,6 +79,11 @@ namespace Bullet.Core.Http
         private int Send(Socket socket, ReadOnlyMemory<byte> buffer)
         {
             return socket.Send(buffer.Span, SocketFlags.None);
+        }
+
+        private void SendStream(ReadOnlyMemory<byte> buffer)
+        {
+            _stram.Write(buffer.Span);
         }
 
         private async ValueTask<BulletHttpResponse> ReadAsync(Socket socket, CancellationToken ctk = default)
@@ -145,7 +151,8 @@ namespace Bullet.Core.Http
 
                 int length = 0;
 
-                int readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+                //int readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+                int readBytes = _stram.Read(_buffer.Span);
 
                 if (readBytes == 0)
                     return result;
@@ -161,7 +168,8 @@ namespace Bullet.Core.Http
                 {
                     while (!HttpStreamHelper.IsEndOfChunkedStream(_buffer.Span.Slice(0, readBytes)))
                     {
-                        readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+                        //readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+                        readBytes = _stram.Read(_buffer.Span);
                         length += readBytes;
                     }
                 }
@@ -170,7 +178,9 @@ namespace Bullet.Core.Http
                 {
                     while (!HttpStreamHelper.IsEndOfChunkedStream(_buffer.Span.Slice(0, readBytes)))
                     {
-                        readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+                        //readBytes = socket.Receive(_buffer.Span, SocketFlags.None);
+                        readBytes = _stram.Read(_buffer.Span);
+
                         length += readBytes;
                     }
                 }
@@ -216,6 +226,19 @@ namespace Bullet.Core.Http
                 return;
 
             _tcpClient.Connect(_uri.Host, _uri.Port);
+            _stram = GetStream();
+        }
+
+        private Stream GetStream()
+        {
+            if (_uri.Scheme == Uri.UriSchemeHttp)
+                return _tcpClient.GetStream();
+
+            var stream = new SslStream(_tcpClient.GetStream());
+            var xc = new X509Certificate2Collection();
+            stream.AuthenticateAsClient(_uri.Host, xc, SslProtocols.Tls12, false);
+
+            return stream;
         }
 
         private void Reset()

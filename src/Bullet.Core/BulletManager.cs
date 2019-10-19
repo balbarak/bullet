@@ -16,6 +16,8 @@ namespace Bullet.Core
         private int _totalRequests;
         private int _failedRequests;
         private string _url;
+        private Stopwatch _localStopwatch;
+        private System.Timers.Timer _timer;
 
         public BulletClient[] Clients { get; private set; }
 
@@ -25,9 +27,21 @@ namespace Bullet.Core
 
         public int TotalRequests => _totalRequests;
         public int TotalFailedRequests => _failedRequests;
+
+        public TimeSpan Duration { get; private set; }
+
         public TimeSpan Elapsed { get; private set; }
 
-        public double RequestPerSecond => TotalRequests / (Elapsed.TotalMilliseconds / 1000);
+        public double RequestPerSecond
+        {
+            get
+            {
+                if (Duration == null)
+                    return 0;
+
+                return TotalRequests / (Duration.TotalMilliseconds / 1000.0);
+            }
+        }
 
         public int Connections => Clients.Where(a => a.Responses.Any()).Count();
 
@@ -37,6 +51,10 @@ namespace Bullet.Core
         public BulletManager(string url)
         {
             _url = url;
+            _localStopwatch = new Stopwatch();
+            _timer = new System.Timers.Timer(100);
+            _timer.Elapsed += OnTimerElapsed;
+            _timer.Start();
         }
 
         public async Task StartGetAsync(int connections = 1, int durationInSeconds = 1)
@@ -83,6 +101,68 @@ namespace Bullet.Core
                       }
 
                   });
+
+            }
+            catch (Exception)
+            {
+
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+
+            OnFinished?.Invoke(this, EventArgs.Empty);
+        }
+
+        //Best senario
+        public async Task StartGetAsyncSeparateTimer(int connections = 1, int durationInSeconds = 1, CancellationToken token = default)
+        {
+            try
+            {
+                var ctk = token;
+
+                IsBusy = true;
+
+                _localStopwatch = new Stopwatch();
+
+                await Task.Run(() =>
+                {
+                    GC.Collect();
+
+                    Duration = TimeSpan.FromSeconds(durationInSeconds);
+
+                    var proccessCount = Environment.ProcessorCount;
+                    var events = new List<ManualResetEventSlim>();
+                    var threads = new Thread[connections];
+
+
+                    SetupClients(connections);
+
+                    OnStart?.Invoke(this, EventArgs.Empty);
+
+                    for (int i = 0; i < connections; i++)
+                    {
+                        var thread = new Thread(async (index) => await StartGetClient(Clients[(int)index], Duration,_localStopwatch, ctk));
+                        threads[i] = thread;
+                    }
+
+                    Parallel.ForEach(threads, (thread) =>
+                    {
+                        var index = Array.IndexOf(threads, thread);
+
+                        thread.Start(index);
+                    });
+                    
+                    _localStopwatch.Start();
+
+                    foreach (var item in threads)
+                    {
+                        item.Join();
+                    }
+                });
+
+                _localStopwatch.Stop();
 
             }
             catch (Exception)
@@ -170,7 +250,7 @@ namespace Bullet.Core
                     client.Get();
 
                     Interlocked.Increment(ref _totalRequests);
-                    
+
                     Elapsed = stopwatch.Elapsed;
                 }
 
@@ -189,12 +269,46 @@ namespace Bullet.Core
             return Task.CompletedTask;
         }
 
+        private Task StartGetClient(BulletClient client, TimeSpan duration, Stopwatch stopwatch = null, CancellationToken token = default)
+        {
+            try
+            {
+                var ctk = token;
+
+                if (stopwatch == null)
+                    stopwatch = Stopwatch.StartNew();
+
+                while (!ctk.IsCancellationRequested && duration.TotalMilliseconds > stopwatch.Elapsed.TotalMilliseconds)
+                {
+                    client.Get();
+
+                    Interlocked.Increment(ref _totalRequests);
+                }
+            }
+            catch (Exception)
+            {
+                Interlocked.Increment(ref _failedRequests);
+            }
+            finally
+            {
+
+            }
+
+            return Task.CompletedTask;
+        }
 
         private BulletClient CreateNewClient(int index)
         {
             var result = new BulletClient(_url, index);
 
             return result;
+        }
+
+
+        private void OnTimerElapsed(object sender, ElapsedEventArgs e)
+        {
+            if (_localStopwatch != null)
+                Elapsed = _localStopwatch.Elapsed;
         }
 
     }
