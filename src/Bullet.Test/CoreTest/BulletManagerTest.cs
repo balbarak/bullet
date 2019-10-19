@@ -18,7 +18,6 @@ namespace Bullet.Test.CoreTest
 
             await manager.StartGetAsync(125, 1);
 
-            var totalSeconds = manager.TotalSeconds;
             var totalRequests = manager.TotalRequests;
             var rps = manager.RequestPerSecond;
 

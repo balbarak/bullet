@@ -17,28 +17,34 @@ namespace Bullet.Wpf
         private BulletManager _manager;
         private double _progress;
         private int _totalRequest;
-        private int _totalSuccessRequest;
         private int _totalFailedRequest;
-        private double _maxRequestPerSecond;
-        private double _lowestRequestPerSecond;
-        private double _averageRequestPerSecond;
+        private double _requestsPerSecond;
+        private int _connections;
+        private bool _useThreadPerConnection;
+        private bool _useOptimazedNumberOfThreads = true;
         private CancellationTokenSource _ctk;
-        private SemaphoreSlim _lock;
+        private TimeSpan _durationSpan;
+        private System.Timers.Timer _timer;
 
-        public double LowsetRequestPerSecond
+        public bool UseOptimazedNumberOfThreads
         {
-            get { return _lowestRequestPerSecond; }
-            set { SetProperty(ref _lowestRequestPerSecond, value); }
+            get { return _useOptimazedNumberOfThreads; }
+            set { SetProperty(ref _useOptimazedNumberOfThreads, value); UseThreadPerConnection = !value; }
         }
-        public double AverageRequestPerSecond
+        public bool UseThreadPerConnection
         {
-            get { return _averageRequestPerSecond; }
-            set { SetProperty(ref _averageRequestPerSecond, value); }
+            get { return _useThreadPerConnection; }
+            set { SetProperty(ref _useThreadPerConnection, value); }
         }
-        public double MaxRequestPerSecond
+        public int Connections
         {
-            get { return _maxRequestPerSecond; }
-            set { SetProperty(ref _maxRequestPerSecond, value); }
+            get { return _connections; }
+            set { SetProperty(ref _connections, value); }
+        }
+        public double RequestsPerSecond
+        {
+            get { return _requestsPerSecond; }
+            set { SetProperty(ref _requestsPerSecond, value); }
         }
         public string Url
         {
@@ -49,11 +55,6 @@ namespace Bullet.Wpf
         {
             get { return _totalFailedRequest; }
             set { SetProperty(ref _totalFailedRequest, value); }
-        }
-        public int TotalSuccessRequest
-        {
-            get { return _totalSuccessRequest; }
-            set { SetProperty(ref _totalSuccessRequest, value); }
         }
         public int TotalRequest
         {
@@ -81,7 +82,20 @@ namespace Bullet.Wpf
 
         public MainViewModel()
         {
-            _lock = new SemaphoreSlim(1);
+            _durationSpan = new TimeSpan();
+            _timer = new System.Timers.Timer
+            {
+                Interval = 500
+            };
+            _timer.Elapsed += OnTimer;
+            _timer.Start();
+        }
+
+        private void OnTimer(object sender, System.Timers.ElapsedEventArgs e)
+        {
+
+            UpdateProgress();
+
         }
 
         private async Task Start()
@@ -97,14 +111,13 @@ namespace Bullet.Wpf
 
             AddManagerEvents();
 
-            var duration = TimeSpan.FromSeconds(_duration);
+            _durationSpan = TimeSpan.FromSeconds(_duration);
 
-            var progressTask = _manager.StartGetAsync(_numberOfConnections, _duration);
-            var updatProgressTask = UpdateProgress(duration);
+            if (UseOptimazedNumberOfThreads)
+                await _manager.StartGetAsync(_numberOfConnections, _duration);
+            else
+                await _manager.StartGetAsyncThreads(_numberOfConnections, _duration);
 
-            await Task.WhenAll(updatProgressTask, progressTask);
-
-            //await updatProgressTask;
 
             IsBusy = false;
         }
@@ -113,11 +126,8 @@ namespace Bullet.Wpf
         {
             Progress = 0;
             TotalRequest = 0;
-            TotalSuccessRequest = 0;
             TotalFailedRequest = 0;
-            AverageRequestPerSecond = 0;
-            MaxRequestPerSecond = 0;
-            LowsetRequestPerSecond = 0;
+            RequestsPerSecond = 0;
             _manager = new BulletManager(Url);
         }
 
@@ -131,7 +141,7 @@ namespace Bullet.Wpf
 
         private void RemoveManagerEvents()
         {
-
+            _manager.OnFinished -= OnManagerFinished;
         }
 
         private void AddManagerEvents()
@@ -142,30 +152,22 @@ namespace Bullet.Wpf
         private void OnManagerFinished(object sender, EventArgs e)
         {
             TotalRequest = _manager.TotalRequests;
-            AverageRequestPerSecond = _manager.RequestPerSecond;
+            RequestsPerSecond = _manager.RequestPerSecond;
+            TotalFailedRequest = _manager.TotalFailedRequests;
+            Connections = _manager.Connections;
         }
 
-        private async Task UpdateProgress(TimeSpan duration)
+        private void UpdateProgress()
         {
-
-            try
+            if (_manager != null && _manager.IsBusy)
             {
-                var sw = Stopwatch.StartNew();
-
-                while (duration.TotalMilliseconds > sw.Elapsed.TotalMilliseconds)
+                App.Current.Dispatcher.Invoke(() =>
                 {
-
-                    Progress = (sw.Elapsed.TotalMilliseconds / duration.TotalMilliseconds) * 100;
+                    Progress = (_manager.Elapsed.TotalMilliseconds / _durationSpan.TotalMilliseconds ) * 100.0;
                     TotalRequest = _manager.TotalRequests;
-                    await Task.Delay(30);
-                }
-
+                },System.Windows.Threading.DispatcherPriority.Render);
+                
             }
-            catch (Exception ex)
-            {
-
-            }
-
         }
     }
 }

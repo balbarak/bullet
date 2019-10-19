@@ -13,14 +13,15 @@ namespace Bullet.Core
 {
     public class BulletManager
     {
+        private int _totalRequests;
+        private int _failedRequests;
         private string _url;
 
         public BulletClient[] Clients { get; private set; }
 
-        public double TotalSeconds => TimeSpan.FromMilliseconds(Clients.SelectMany(a => a.Responses).Sum(a => a.Latency)).TotalSeconds;
+        public int Progress { get; private set; }
 
-        private int _totalRequests;
-        private int _failedRequests;
+        public bool IsBusy { get; private set; }
 
         public int TotalRequests => _totalRequests;
         public int TotalFailedRequests => _failedRequests;
@@ -28,9 +29,11 @@ namespace Bullet.Core
 
         public double RequestPerSecond => TotalRequests / (Elapsed.TotalMilliseconds / 1000);
 
+        public int Connections => Clients.Where(a => a.Responses.Any()).Count();
+
         public event EventHandler OnStart;
         public event EventHandler OnFinished;
-        
+
         public BulletManager(string url)
         {
             _url = url;
@@ -40,6 +43,8 @@ namespace Bullet.Core
         {
             try
             {
+                IsBusy = true;
+
                 await Task.Run(async () =>
                   {
                       GC.Collect();
@@ -49,31 +54,84 @@ namespace Bullet.Core
                       SetupClients(connections);
 
                       var events = new List<ManualResetEventSlim>();
-                      var threads = new List<Thread>();
+                      var threads = new Thread[connections];
                       var tasks = new Task[connections];
                       var duration = TimeSpan.FromSeconds(durationInSeconds);
-                      var sw = Stopwatch.StartNew();
+                      var sw = new Stopwatch();
+                      sw.Start();
 
-                      Parallel.For(0,connections,(index) =>
-                      {
-                          tasks[index] = StartGetClient(Clients[index], duration, sw);
-                      });
+                      Parallel.For(0, connections, (index, state) =>
+                        {
+                            tasks[index] = StartGetClient(Clients[index], duration, sw);
 
-                      Elapsed = sw.Elapsed;
+                        });
 
                       await Task.WhenAll(tasks);
 
                   });
+
             }
             catch (Exception)
             {
 
             }
+            finally
+            {
+                IsBusy = false;
+            }
 
             OnFinished?.Invoke(this, EventArgs.Empty);
         }
 
-        
+        public async Task StartGetAsyncThreads(int connections = 1, int durationInSeconds = 1)
+        {
+            try
+            {
+                IsBusy = true;
+
+                await Task.Run(() =>
+                {
+                    GC.Collect();
+
+                    OnStart?.Invoke(this, EventArgs.Empty);
+
+                    SetupClients(connections);
+
+                    var events = new List<ManualResetEventSlim>();
+                    var threads = new Thread[connections];
+                    var tasks = new Task[connections];
+                    var duration = TimeSpan.FromSeconds(durationInSeconds);
+                    var sw = new Stopwatch();
+
+                    for (int i = 0; i < connections; i++)
+                    {
+                        var thread = new Thread((index) => StartGetClient(Clients[(int)index], duration, sw));
+                        threads[i] = thread;
+                    }
+
+                    sw.Start();
+
+                    for (int i = 0; i < threads.Length; i++)
+                    {
+                        threads[i].Start(i);
+                    }
+
+                    Parallel.ForEach(threads, (item) => item.Join());
+
+                });
+            }
+            catch (Exception)
+            {
+
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+
+            OnFinished?.Invoke(this, EventArgs.Empty);
+        }
+
         private void SetupClients(int connections)
         {
             Clients = new BulletClient[connections];
@@ -92,11 +150,15 @@ namespace Bullet.Core
             {
                 while (duration.TotalMilliseconds > stopwatch.Elapsed.TotalMilliseconds)
                 {
-                    Interlocked.Increment(ref _totalRequests);
-
                     client.Get();
+
+                    Interlocked.Increment(ref _totalRequests);
+                    
+                    Elapsed = stopwatch.Elapsed;
                 }
 
+                stopwatch.Stop();
+                Elapsed = stopwatch.Elapsed;
             }
             catch (Exception)
             {
